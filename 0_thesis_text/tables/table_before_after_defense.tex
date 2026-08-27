@@ -1,21 +1,22 @@
 \begin{table}[htbp]
 \centering
-\caption{Experimentální vyhodnocení účinnosti navržených protiopatření (Cell Coalescing \& Protocol Mimicry) napříč celou modelovou hierarchií}
+\caption{Srovnání úrovní navržených protiopatření: Dopad na detekci a režii přenosového pásma}
 \label{tab:before_after_defense}
-\begin{tabular}{lcccccc}
+\begin{tabular}{llcccc}
 \hline
-\textbf{Model} & \textbf{Stav} & \textbf{Accuracy} & \textbf{Recall (Detekce)} & \textbf{Precision} & \textbf{F1-Score} & \textbf{PR-AUC} \\
+\textbf{Model} & \textbf{Úroveň obranného mechanismu} & \textbf{Accuracy} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Režie pásma} \\
 \hline
-\multirow{2}{*}{1D-CNN (Deep Packet)} & Před obranou & 99.7\% & 98.3\% & 100.0\% & 99.2\% & 0.9997 \\
- & Po obraně & 98.1\% & \textbf{90.0\%} & 100.0\% & \textbf{94.7\%} & 0.9910 \\
+\multirow{3}{*}{1D-CNN (Deep Packet)} & Původní stav (bez obrany) & 99.7\% & 98.3\% & 99.2\% & 0.0\% \\
+ & Adaptivní padding (1--128\,B) & 97.2\% & 85.0\% & 91.9\% & 9.7\% \\
+ & Cell Coalescing \& ECDF Mimicry & 98.4\% & \textbf{91.7\%} & \textbf{95.7\%} & 70.8\% \\
 \hline
-\multirow{2}{*}{Flow-Transformer} & Před obranou & 98.4\% & 98.3\% & 93.7\% & 95.9\% & 0.9917 \\
- & Po obraně & 98.1\% & \textbf{96.7\%} & 93.5\% & \textbf{95.1\%} & 0.9410 \\
+\multirow{3}{*}{Flow-Transformer} & Původní stav (bez obrany) & 98.4\% & 98.3\% & 95.9\% & 0.0\% \\
+ & Adaptivní padding (1--128\,B) & 98.4\% & 98.3\% & 95.9\% & 9.7\% \\
+ & Cell Coalescing \& ECDF Mimicry & 98.1\% & \textbf{96.7\%} & \textbf{95.1\%} & 70.8\% \\
 \hline
-\multirow{2}{*}{XGBoost (Baseline)} & Před obranou & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 1.0000 \\
- & Po obraně & 100.0\% & \textbf{100.0\%} & 100.0\% & \textbf{100.0\%} & 1.0000 \\
-\hline
-\multicolumn{7}{l}{\footnotesize Režie šířky pásma (Bandwidth Overhead): 71.9\%} \\
+\multirow{3}{*}{XGBoost (Baseline)} & Původní stav (bez obrany) & 100.0\% & 100.0\% & 100.0\% & 0.0\% \\
+ & Adaptivní padding (1--128\,B) & 100.0\% & 100.0\% & 100.0\% & 9.7\% \\
+ & Cell Coalescing \& ECDF Mimicry & 100.0\% & \textbf{100.0\%} & \textbf{100.0\%} & 70.8\% \\
 \hline
 \end{tabular}
 \end{table}

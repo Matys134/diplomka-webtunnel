@@ -54,9 +54,14 @@ def export_model_comparison_table():
     # Flow-Transformer
     tf_lat = f"{tf_res.get('inference_latency_ms', 0):.4f} ms"
     tf_tp = f"{tf_res.get('throughput_flows_sec', 0):,.0f} flows/s"
-    acc = f"{tf_res.get('metrics', {}).get('accuracy', 0)*100:.1f}\\%"
-    pr = f"{tf_res.get('metrics', {}).get('pr_auc', 0):.3f}"
-    roc = f"{tf_res.get('metrics', {}).get('roc_auc', 0):.3f}"
+    if "transformer_cv_5fold" in cv_res:
+        acc = f"{cv_res['transformer_cv_5fold']['acc']['mean']*100:.1f} \\pm {cv_res['transformer_cv_5fold']['acc']['std']*100:.1f}\\%"
+        pr = f"{cv_res['transformer_cv_5fold']['pr_auc']['mean']:.3f} \\pm {cv_res['transformer_cv_5fold']['pr_auc']['std']:.3f}"
+        roc = f"{cv_res['transformer_cv_5fold']['roc_auc']['mean']:.3f} \\pm {cv_res['transformer_cv_5fold']['roc_auc']['std']:.3f}"
+    else:
+        acc = f"{tf_res.get('metrics', {}).get('accuracy', 0)*100:.1f}\\%"
+        pr = f"{tf_res.get('metrics', {}).get('pr_auc', 0):.3f}"
+        roc = f"{tf_res.get('metrics', {}).get('roc_auc', 0):.3f}"
     tex += f"Flow-Transformer & RTX 5070 Ti & ${acc}$ & ${pr}$ & ${roc}$ & {tf_lat} & {tf_tp} \\\\\n"
     
     tex += r"""\hline
