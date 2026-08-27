@@ -1,0 +1,13 @@
+{
+    "build_dataset": 1.4006171226501465,
+    "inspect_dataset": 5.245624303817749,
+    "train_xgboost": 0.8194177150726318,
+    "train_1d_cnn": 4.85347318649292,
+    "train_transformer": 6.3703694343566895,
+    "cross_validation": 11.033247470855713,
+    "explainability": 1.8447818756103516,
+    "defense_sim": 1.8435602188110352,
+    "evaluation": 1.4491996765136719,
+    "latex_export": 0.011537790298461914,
+    "total_pipeline_time_sec": 34.90219283103943
+}

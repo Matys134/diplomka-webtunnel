@@ -1,0 +1,16 @@
+RunAsDaemon 0
+SocksPort 0
+BridgeRelay 1
+Nickname WTBridgeLab
+Log notice stdout
+ServerTransportPlugin webtunnel exec /usr/local/bin/webtunnel-server
+ExtORPort auto
+DataDirectory /var/lib/tor
+
+ORPort 9001
+ServerTransportListenAddr webtunnel 0.0.0.0:15000
+ServerTransportOptions webtunnel url=https://webtunnel.local/secret-path-wt-research-2026
+
+AssumeReachable 1
+PublishServerDescriptor 0
+ContactInfo lab-student@webtunnel.local

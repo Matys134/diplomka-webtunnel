@@ -1,0 +1,110 @@
+{
+    "model": "XGBoost",
+    "train_time_sec": 0.22924566268920898,
+    "optimal_threshold": 0.4848605990409851,
+    "inference_latency_ms": 0.0005624294281005859,
+    "throughput_flows_sec": 1778000.8478168715,
+    "metrics": {
+        "accuracy": 0.9923371647509579,
+        "precision": 0.9833333333333333,
+        "recall": 0.9833333333333333,
+        "f1": 0.9833333333333333,
+        "pr_auc": 0.9994623655913979,
+        "roc_auc": 0.9998341625207298
+    },
+    "confusion_matrix": [
+        [
+            200,
+            1
+        ],
+        [
+            1,
+            59
+        ]
+    ],
+    "low_fpr_precision": {
+        "fpr_0.01": {
+            "threshold": 0.43129703402519226,
+            "precision": 0.7894736842105263,
+            "recall": 1.0,
+            "tp": 60,
+            "fp": 16
+        },
+        "fpr_0.001": {
+            "threshold": 0.4821893870830536,
+            "precision": 0.9833333333333333,
+            "recall": 0.9833333333333333,
+            "tp": 59,
+            "fp": 1
+        },
+        "fpr_0.0001": {
+            "threshold": 0.4845934808254242,
+            "precision": 0.9833333333333333,
+            "recall": 0.9833333333333333,
+            "tp": 59,
+            "fp": 1
+        }
+    },
+    "top_features": [
+        {
+            "name": "up_len_p90",
+            "importance": 0.282090961933136
+        },
+        {
+            "name": "up_len_p75",
+            "importance": 0.25519147515296936
+        },
+        {
+            "name": "up_len_std",
+            "importance": 0.24997667968273163
+        },
+        {
+            "name": "up_len_max",
+            "importance": 0.09200921654701233
+        },
+        {
+            "name": "up_len_p10",
+            "importance": 0.041658151894807816
+        },
+        {
+            "name": "burst_dur_mean",
+            "importance": 0.014826713129878044
+        },
+        {
+            "name": "len_max",
+            "importance": 0.011185454204678535
+        },
+        {
+            "name": "len_p50",
+            "importance": 0.007057670503854752
+        },
+        {
+            "name": "down_len_p75",
+            "importance": 0.0062430924735963345
+        },
+        {
+            "name": "len_std",
+            "importance": 0.006116500124335289
+        },
+        {
+            "name": "burst_len_std_pkts",
+            "importance": 0.0058730668388307095
+        },
+        {
+            "name": "len_skew",
+            "importance": 0.004161139950156212
+        },
+        {
+            "name": "iat_p75",
+            "importance": 0.003848910564556718
+        },
+        {
+            "name": "ratio_up_bytes",
+            "importance": 0.0026185570750385523
+        },
+        {
+            "name": "burst_len_mean_bytes",
+            "importance": 0.0024414630606770515
+        }
+    ]
+}

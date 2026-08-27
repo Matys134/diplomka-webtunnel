@@ -1,0 +1,25 @@
+{
+    "model": "1D-CNN",
+    "device": "cuda",
+    "train_time_sec": 2.977855920791626,
+    "inference_latency_ms": 0.12624907493591309,
+    "throughput_flows_sec": 7920.850117180049,
+    "metrics": {
+        "accuracy": 0.9846743295019157,
+        "precision": 1.0,
+        "recall": 0.9333333333333333,
+        "f1": 0.9655172413793104,
+        "pr_auc": 0.9992063492063493,
+        "roc_auc": 0.9997512437810945
+    },
+    "confusion_matrix": [
+        [
+            201,
+            0
+        ],
+        [
+            4,
+            56
+        ]
+    ]
+}

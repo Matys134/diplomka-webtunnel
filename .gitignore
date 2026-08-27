@@ -1,0 +1,19 @@
+# Python virtualenv & cache
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Raw PCAP Captures (large binaries)
+data/raw_pcap/
+*.pcap
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Large local run logs
+*.log

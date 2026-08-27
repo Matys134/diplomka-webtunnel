@@ -1,0 +1,8 @@
+RunAsDaemon 0
+SocksPort 0.0.0.0:9050
+Log notice stdout
+DataDirectory /var/lib/tor
+
+UseBridges 1
+ClientTransportPlugin webtunnel exec /usr/local/bin/webtunnel-client
+Bridge webtunnel 172.20.0.10:443 url=https://webtunnel.local/secret-path-wt-research-2026

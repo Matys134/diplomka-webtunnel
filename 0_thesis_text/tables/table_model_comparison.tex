@@ -1,0 +1,14 @@
+\begin{table}[htbp]
+\centering
+\caption{Srovnání klasifikačních modelů pro detekci WebTunnelu vůči Hard Negatives}
+\label{tab:model_comparison}
+\begin{tabular}{lcccccc}
+\hline
+\textbf{Model} & \textbf{Hardware} & \textbf{Accuracy} & \textbf{PR-AUC} & \textbf{ROC-AUC} & \textbf{Latence/flow} & \textbf{Propustnost} \\
+\hline
+XGBoost (Baseline) & Ryzen 9800X3D & $99.5 \pm 0.3\%$ & $1.000 \pm 0.000$ & $1.000 \pm 0.000$ & 0.0006 ms & 1,778,001 flows/s \\
+1D-CNN (Deep Packet) & RTX 5070 Ti & $99.1 \pm 1.3\%$ & $0.997 \pm 0.006$ & $0.999 \pm 0.001$ & 0.1262 ms & 7,921 flows/s \\
+Flow-Transformer & RTX 5070 Ti & $97.7\%$ & $0.997$ & $0.999$ & 0.1740 ms & 5,747 flows/s \\
+\hline
+\end{tabular}
+\end{table}

@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{Vliv přítomnosti TLS handshaku na detekční schopnost klasifikátorů}
+\label{tab:handshake_comparison}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Scénář inspekce} & \textbf{Model} & \textbf{Accuracy} & \textbf{PR-AUC} & \textbf{ROC-AUC} \\
+\hline
+Kompletní tok (včetně TLS Handshaku) & XGBoost & 99.23\% & 1.0000 & 1.0000 \\
+Kompletní tok (včetně TLS Handshaku) & 1D-CNN & 99.62\% & 0.9992 & 0.9998 \\
+\hline
+Čistě Post-Handshake (bez TLS Handshaku) & XGBoost & 99.23\% & 1.0000 & 1.0000 \\
+Čistě Post-Handshake (bez TLS Handshaku) & 1D-CNN & 99.61\% & 0.9997 & 0.9999 \\
+\hline
+\end{tabular}
+\end{table}

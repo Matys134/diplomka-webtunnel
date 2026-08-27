@@ -1,0 +1,19 @@
+\begin{table}[htbp]
+\centering
+\caption{Experimentální srovnání detekovatelnosti WebTunnelu PŘED a PO aplikaci navržených protiopatření}
+\label{tab:before_after_defense}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Metrika} & \textbf{Před obranou (Současný stav)} & \textbf{Po obraně (Cell Coalescing \& Mimicry)} & \textbf{Změna} \\
+\hline
+1D-CNN Přesnost (Accuracy) & 98.5\% & 93.5\% & \textbf{-5.0\%} \\
+1D-CNN Recall (Schopnost detekce) & 93.3\% & 71.7\% & \textbf{-21.7\%} \\
+1D-CNN Precision (Přesnost cenzora) & 100.0\% & 100.0\% & \textbf{+0.0\%} \\
+1D-CNN F1-Score & 96.6\% & 83.5\% & \textbf{-13.1\%} \\
+1D-CNN PR-AUC & 0.9992 & 0.9740 & \textbf{-0.0253} \\
+1D-CNN ROC-AUC & 0.9998 & 0.9826 & \textbf{-0.0172} \\
+\hline
+Režie šířky pásma (Bandwidth Overhead) & 0.0\% & 68.1\% & +68.1\% \\
+\hline
+\end{tabular}
+\end{table}

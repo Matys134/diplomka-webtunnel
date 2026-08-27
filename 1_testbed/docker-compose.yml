@@ -1,0 +1,76 @@
+services:
+  webtunnel-server:
+    image: nginx:alpine
+    container_name: webtunnel-server
+    restart: unless-stopped
+    networks:
+      testbed-net:
+        ipv4_address: 172.20.0.10
+        aliases:
+          - webtunnel.local
+    volumes:
+      - ./webtunnel_server/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./webtunnel_server/certs:/etc/nginx/certs:ro
+      - ./webtunnel_server/decoy_web:/var/www/html:ro
+    ports:
+      - "8443:443"
+      - "8080:80"
+    depends_on:
+      - tor-bridge
+
+  tor-bridge:
+    build:
+      context: ./tor_bridge
+    container_name: tor-bridge
+    restart: unless-stopped
+    networks:
+      testbed-net:
+        ipv4_address: 172.20.0.15
+    expose:
+      - "15000"
+      - "9001"
+
+  legitimate-servers:
+    build:
+      context: ./legitimate_servers
+    container_name: legitimate-servers
+    restart: unless-stopped
+    networks:
+      testbed-net:
+        ipv4_address: 172.20.0.20
+        aliases:
+          - legitimate.local
+    volumes:
+      - ./webtunnel_server/certs:/app/certs:ro
+      - ./legitimate_servers/server.py:/app/server.py:ro
+    ports:
+      - "9443:8443"
+
+  client:
+    build:
+      context: ./client
+    container_name: testbed-client
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    networks:
+      testbed-net:
+        ipv4_address: 172.20.0.30
+    volumes:
+      - ./webtunnel_server/certs/ca.crt:/usr/local/share/ca-certificates/ca.crt:ro
+      - ./client/traffic_generator.py:/app/traffic_generator.py:ro
+      - ./router/netem_profiles.sh:/app/netem_profiles.sh:ro
+      - ../data/raw_pcap:/data/raw_pcap
+    working_dir: /app
+    depends_on:
+      - webtunnel-server
+      - legitimate-servers
+
+networks:
+  testbed-net:
+    name: testbed-net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
