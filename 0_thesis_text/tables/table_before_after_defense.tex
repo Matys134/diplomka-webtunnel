@@ -1,19 +1,21 @@
 \begin{table}[htbp]
 \centering
-\caption{Experimentální srovnání detekovatelnosti WebTunnelu PŘED a PO aplikaci navržených protiopatření}
+\caption{Experimentální vyhodnocení účinnosti navržených protiopatření (Cell Coalescing \& Protocol Mimicry) napříč celou modelovou hierarchií}
 \label{tab:before_after_defense}
-\begin{tabular}{lcccc}
+\begin{tabular}{lcccccc}
 \hline
-\textbf{Metrika} & \textbf{Před obranou (Současný stav)} & \textbf{Po obraně (Cell Coalescing \& Mimicry)} & \textbf{Změna} \\
+\textbf{Model} & \textbf{Stav} & \textbf{Accuracy} & \textbf{Recall (Detekce)} & \textbf{Precision} & \textbf{F1-Score} & \textbf{PR-AUC} \\
 \hline
-1D-CNN Přesnost (Accuracy) & 98.5\% & 93.5\% & \textbf{-5.0\%} \\
-1D-CNN Recall (Schopnost detekce) & 93.3\% & 71.7\% & \textbf{-21.7\%} \\
-1D-CNN Precision (Přesnost cenzora) & 100.0\% & 100.0\% & \textbf{+0.0\%} \\
-1D-CNN F1-Score & 96.6\% & 83.5\% & \textbf{-13.1\%} \\
-1D-CNN PR-AUC & 0.9992 & 0.9740 & \textbf{-0.0253} \\
-1D-CNN ROC-AUC & 0.9998 & 0.9826 & \textbf{-0.0172} \\
+\multirow{2}{*}{1D-CNN (Deep Packet)} & Před obranou & 98.5\% & 93.3\% & 100.0\% & 96.6\% & 0.9992 \\
+ & Po obraně & 93.5\% & \textbf{71.7\%} & 100.0\% & \textbf{83.5\%} & 0.9788 \\
 \hline
-Režie šířky pásma (Bandwidth Overhead) & 0.0\% & 68.1\% & +68.1\% \\
+\multirow{2}{*}{Flow-Transformer} & Před obranou & 97.7\% & 91.7\% & 98.2\% & 94.8\% & 0.9975 \\
+ & Po obraně & 89.7\% & \textbf{56.7\%} & 97.1\% & \textbf{71.6\%} & 0.9698 \\
+\hline
+\multirow{2}{*}{XGBoost (Baseline)} & Před obranou & 99.6\% & 98.3\% & 100.0\% & 99.2\% & 1.0000 \\
+ & Po obraně & 99.2\% & \textbf{96.7\%} & 100.0\% & \textbf{98.3\%} & 1.0000 \\
+\hline
+\multicolumn{7}{l}{\footnotesize Režie šířky pásma (Bandwidth Overhead): 67.2\%} \\
 \hline
 \end{tabular}
 \end{table}

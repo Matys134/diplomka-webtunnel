@@ -61,31 +61,40 @@ def main():
     plt.savefig(os.path.join(PLOT_DIR, "base_rate_fallacy_fdr.png"), dpi=300)
     plt.close()
     
-    # 2. Host-Based Multi-Flow Aggregation (Jansen et al. NDSS 2024)
+    # 2. Host-Based Multi-Flow Aggregation with Correlated Noise Modeling (Jansen et al. NDSS 2024)
     m_flows = np.arange(1, 11)
     single_fpr = 1e-3
     alpha_edge = 1e-4
     alpha_core = 1e-6
+    rho_corr = 0.01  # 1% correlated / persistent application noise
     
-    host_fdrs_1e4 = []
-    host_fdrs_1e6 = []
+    host_fdrs_ideal_edge = []
+    host_fdrs_ideal_core = []
+    host_fdrs_corr_core = []
     
     for m in m_flows:
-        eff_host_fpr = max(1e-18, single_fpr ** m)
-        prec_edge = bayes_precision(tpr, eff_host_fpr, alpha_edge)
-        prec_core = bayes_precision(tpr, eff_host_fpr, alpha_core)
-        host_fdrs_1e4.append((1.0 - prec_edge) * 100.0)
-        host_fdrs_1e6.append((1.0 - prec_core) * 100.0)
+        # Ideal independent
+        eff_host_fpr_ideal = max(1e-18, single_fpr ** m)
+        prec_ideal_edge = bayes_precision(tpr, eff_host_fpr_ideal, alpha_edge)
+        prec_ideal_core = bayes_precision(tpr, eff_host_fpr_ideal, alpha_core)
+        host_fdrs_ideal_edge.append((1.0 - prec_ideal_edge) * 100.0)
+        host_fdrs_ideal_core.append((1.0 - prec_ideal_core) * 100.0)
+        
+        # Correlated error mixture: rho * single_fpr + (1 - rho) * single_fpr^m
+        eff_host_fpr_corr = rho_corr * single_fpr + (1.0 - rho_corr) * eff_host_fpr_ideal
+        prec_corr_core = bayes_precision(tpr, eff_host_fpr_corr, alpha_core)
+        host_fdrs_corr_core.append((1.0 - prec_corr_core) * 100.0)
         
     plt.figure(figsize=(10, 6))
-    plt.plot(m_flows, host_fdrs_1e4, marker='o', label="ISP Edge (alpha=10^-4)", color="#1f77b4", linewidth=2.5)
-    plt.plot(m_flows, host_fdrs_1e6, marker='s', label="Tier-1 Backbone (alpha=10^-6)", color="#d62728", linewidth=2.5)
-    plt.title("Host-Based Multi-Flow Aggregation: Defeating Base Rate Fallacy", fontsize=13, fontweight="bold")
-    plt.xlabel("Number of Aggregated Flows per Host (M)", fontsize=12)
+    plt.plot(m_flows, host_fdrs_ideal_edge, marker='o', label="ISP Edge (alpha=10^-4, Ideální)", color="#1f77b4", linewidth=2.5)
+    plt.plot(m_flows, host_fdrs_ideal_core, marker='s', label="Tier-1 Backbone (alpha=10^-6, Ideální)", color="#d62728", linewidth=2.5)
+    plt.plot(m_flows, host_fdrs_corr_core, marker='^', linestyle='--', label="Tier-1 Backbone s korelujícím šumem (rho=1%)", color="#ff7f0e", linewidth=2.0)
+    plt.title("Host-Based Multi-Flow Aggregation: Eliminace Base Rate Fallacy a vliv korelujícího šumu", fontsize=13, fontweight="bold")
+    plt.xlabel("Počet agregovaných toků na hostitele (M)", fontsize=12)
     plt.ylabel("Host False Discovery Rate (FDR %)", fontsize=12)
     plt.ylim(-5, 105)
     plt.xticks(m_flows)
-    plt.legend(fontsize=11)
+    plt.legend(fontsize=10)
     plt.tight_layout()
     plt.savefig(os.path.join(PLOT_DIR, "host_based_aggregation.png"), dpi=300)
     plt.close()

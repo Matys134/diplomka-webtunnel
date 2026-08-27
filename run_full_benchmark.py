@@ -97,8 +97,9 @@ def main():
     # 6. Model Explainability & Saliency
     timings["explainability"] = run_step("Explainable AI (SHAP & Saliency Maps)", f"{VENV_PYTHON} 3_models/explain_models.py")
 
-    # 7. Post-Handshake & Defense Simulation
+    # 7. Post-Handshake, Cross-Profile & Defense Simulation
     timings["post_handshake"] = run_step("Pre- vs Post-Handshake Analysis", f"{VENV_PYTHON} 4_evaluation/evaluate_post_handshake.py")
+    timings["cross_profile"] = run_step("Cross-Profile Domain Generalization Evaluation", f"{VENV_PYTHON} 4_evaluation/evaluate_cross_profile.py")
     timings["defense_sim"] = run_step("Advanced Defenses & Before-vs-After Simulation", f"{VENV_PYTHON} 4_evaluation/evaluate_before_after_defenses.py")
 
     # 8. Base Rate Fallacy & Evaluation
