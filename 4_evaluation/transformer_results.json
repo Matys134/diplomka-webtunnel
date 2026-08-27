@@ -1,25 +1,25 @@
 {
     "model": "Flow-Transformer",
     "device": "cuda",
-    "train_time_sec": 4.489784240722656,
-    "inference_latency_ms": 0.1739966869354248,
-    "throughput_flows_sec": 5747.235867606657,
+    "train_time_sec": 5.456448078155518,
+    "inference_latency_ms": 0.17607569694519043,
+    "throughput_flows_sec": 5679.375503544275,
     "metrics": {
-        "accuracy": 0.9770114942528736,
-        "precision": 0.9821428571428571,
-        "recall": 0.9166666666666666,
-        "f1": 0.9482758620689655,
-        "pr_auc": 0.9974656822195581,
-        "roc_auc": 0.9992537313432835
+        "accuracy": 0.9843260188087775,
+        "precision": 0.9365079365079365,
+        "recall": 0.9833333333333333,
+        "f1": 0.959349593495935,
+        "pr_auc": 0.9917061213719353,
+        "roc_auc": 0.9981981981981982
     },
     "confusion_matrix": [
         [
-            200,
-            1
+            255,
+            4
         ],
         [
-            5,
-            55
+            1,
+            59
         ]
     ]
 }

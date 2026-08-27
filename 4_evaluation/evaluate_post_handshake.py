@@ -25,6 +25,7 @@ EVAL_DIR = "4_evaluation"
 
 CLASS_MAPPING = {
     "webtunnel": 1,
+    "direct_web_browsing": 0,
     "websocket_ticker": 0,
     "websocket_chat": 0,
     "video_streaming": 0,

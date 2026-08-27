@@ -13,7 +13,7 @@ def main():
     os.makedirs(PLOT_DIR, exist_ok=True)
     sns.set_theme(style="whitegrid")
     
-    classes = ["webtunnel", "websocket_ticker", "websocket_chat", "video_streaming", "web_assets"]
+    classes = ["webtunnel", "direct_web_browsing", "websocket_ticker", "websocket_chat", "video_streaming", "web_assets"]
     lengths_per_class = {c: [] for c in classes}
     iats_per_class = {c: [] for c in classes}
     

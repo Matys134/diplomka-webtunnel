@@ -20,6 +20,12 @@ WEBTUNNEL_TARGETS = [
     "https://legitimate-servers:8443/web/assets/bundle.js",
 ]
 
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/123.0",
+]
+
 # SSL Context for legitimate TLS connections
 SSL_CTX = ssl.create_default_context()
 SSL_CTX.check_hostname = False
@@ -28,6 +34,7 @@ SSL_CTX.verify_mode = ssl.CERT_NONE
 def run_webtunnel_request(num_requests: int = None):
     """Sends diverse randomized requests via WebTunnel Tor SOCKS5 proxy."""
     session = requests.Session()
+    session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
     session.proxies = {"http": SOCKS_PROXY, "https": SOCKS_PROXY}
     
     if num_requests is None:
@@ -37,6 +44,22 @@ def run_webtunnel_request(num_requests: int = None):
         target = random.choice(WEBTUNNEL_TARGETS)
         try:
             resp = session.get(target, timeout=20, verify=False)
+        except Exception:
+            pass
+        time.sleep(random.uniform(0.3, 1.5))
+
+def run_direct_web_browsing(num_requests: int = None):
+    """Sends direct HTTPS requests (without Tor SOCKS proxy) to identical web targets over TLS 1.3."""
+    session = requests.Session()
+    session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+    
+    if num_requests is None:
+        num_requests = random.randint(1, 3)
+        
+    for i in range(num_requests):
+        target = random.choice(WEBTUNNEL_TARGETS)
+        try:
+            resp = session.get(target, timeout=15, verify=False)
         except Exception:
             pass
         time.sleep(random.uniform(0.3, 1.5))
@@ -74,10 +97,12 @@ def run_legitimate_video_streaming(base_url: str, num_segments: int = None):
     if num_segments is None:
         num_segments = random.randint(2, 5)
         
+    session = requests.Session()
+    session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
     for i in range(num_segments):
         url = f"{base_url}/video/segment_{i}.m4s"
         try:
-            _ = requests.get(url, timeout=10, verify=False)
+            _ = session.get(url, timeout=10, verify=False)
         except Exception:
             pass
         time.sleep(random.uniform(0.5, 1.2))
@@ -86,23 +111,27 @@ def run_legitimate_web_assets(base_url: str, num_assets: int = None):
     """Simulates web page asset downloading over HTTPS (TLS 1.3)."""
     if num_assets is None:
         num_assets = random.randint(5, 15)
+    session = requests.Session()
+    session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
     for i in range(num_assets):
         url = f"{base_url}/web/assets/item_{i}.bin"
         try:
-            _ = requests.get(url, timeout=5, verify=False)
+            _ = session.get(url, timeout=5, verify=False)
         except Exception:
             pass
         time.sleep(random.uniform(0.02, 0.15))
 
 def main():
     parser = argparse.ArgumentParser(description="Testbed Traffic Generator (TLS 1.3 Enabled)")
-    parser.add_argument("--mode", choices=["webtunnel", "ws_ticker", "ws_chat", "video", "web_assets", "all"], default="all")
+    parser.add_argument("--mode", choices=["webtunnel", "direct_browsing", "ws_ticker", "ws_chat", "video", "web_assets", "all"], default="all")
     parser.add_argument("--ws-server", default="wss://legitimate-servers:8443")
     parser.add_argument("--http-server", default="https://legitimate-servers:8443")
     args = parser.parse_args()
 
     if args.mode in ["webtunnel", "all"]:
         run_webtunnel_request()
+    if args.mode in ["direct_browsing", "all"]:
+        run_direct_web_browsing()
     if args.mode in ["ws_ticker", "all"]:
         asyncio.run(run_legitimate_ws_ticker(f"{args.ws_server}/ws/ticker"))
     if args.mode in ["ws_chat", "all"]:

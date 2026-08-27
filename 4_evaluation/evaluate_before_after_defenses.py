@@ -14,6 +14,7 @@ from sklearn.metrics import (
 
 sys.path.append("2_data_pipeline")
 sys.path.append("3_models")
+from sanitizer import compute_flow_statistics
 from train_1d_cnn import WebTunnel1DCNN
 from train_transformer import WebTunnelTransformer
 
@@ -65,41 +66,29 @@ def simulate_full_cell_coalescing_and_morphing(X_seq, y_bin, cover_class_seqs):
     overhead_pct = (total_added_bytes / max(total_orig_bytes, 1.0)) * 100.0
     return X_defended, overhead_pct
 
-def extract_features_from_seq_batch(X_seq_batch):
-    all_feats = []
-    for i in range(len(X_seq_batch)):
-        raw_lens = np.abs(X_seq_batch[i, :, 0]) * 1500.0
-        raw_signs = np.sign(X_seq_batch[i, :, 0])
-        valid_mask = raw_lens > 10.0
-        
-        lens = raw_lens[valid_mask]
-        signs = raw_signs[valid_mask]
-        
-        if len(lens) == 0:
-            lens = np.array([50.0])
-            signs = np.array([1.0])
-            
-        up_lens = lens[signs > 0]
-        if len(up_lens) == 0: up_lens = np.array([50.0])
-        down_lens = lens[signs < 0]
-        if len(down_lens) == 0: down_lens = np.array([50.0])
-        
-        iats = np.expm1(X_seq_batch[i, :, 1] * 10.0)
-        
-        f = [
-            np.min(lens), np.max(lens), np.mean(lens), np.std(lens), 0.0,
-            np.percentile(lens, 10), np.percentile(lens, 25), np.percentile(lens, 50), np.percentile(lens, 75), np.percentile(lens, 90),
-            np.min(up_lens), np.max(up_lens), np.mean(up_lens), np.std(up_lens),
-            np.percentile(up_lens, 10), np.percentile(up_lens, 25), np.percentile(up_lens, 50), np.percentile(up_lens, 75), np.percentile(up_lens, 90),
-            np.min(down_lens), np.max(down_lens), np.mean(down_lens), np.std(down_lens),
-            np.percentile(down_lens, 10), np.percentile(down_lens, 25), np.percentile(down_lens, 50), np.percentile(down_lens, 75), np.percentile(down_lens, 90),
-            np.min(iats), np.max(iats), np.mean(iats), np.std(iats),
-            np.percentile(iats, 10), np.percentile(iats, 25), np.percentile(iats, 50), np.percentile(iats, 75), np.percentile(iats, 90),
-            5.0, 5.0, 1.0, np.mean(lens)*5, np.std(lens)*5, np.mean(iats)*5, np.std(iats)*5,
-            len(up_lens)/max(len(lens),1), np.sum(up_lens)/max(np.sum(lens),1), len(lens), np.sum(lens)
-        ]
-        all_feats.append(f)
-    return np.array(all_feats, dtype=np.float32)
+def seq_to_packets(seq_item):
+    packets = []
+    curr_t = 0.0
+    for step in range(seq_item.shape[0]):
+        norm_len = seq_item[step, 0]
+        norm_iat = seq_item[step, 1]
+        if abs(norm_len) < 1e-5:
+            continue
+        raw_signed_len = int(round(norm_len * 1500.0))
+        delta_t = float(np.expm1(norm_iat * 10.0))
+        curr_t += delta_t
+        packets.append((curr_t, raw_signed_len))
+    if len(packets) < 3:
+        packets = [(0.0, 50), (0.01, -50), (0.02, 50)]
+    return packets
+
+def extract_features_from_seq_matrix(X_seq_matrix):
+    feats = []
+    for i in range(len(X_seq_matrix)):
+        pkts = seq_to_packets(X_seq_matrix[i])
+        f = compute_flow_statistics(pkts)
+        feats.append(f)
+    return np.array(feats, dtype=np.float32)
 
 def compute_saliency(model_cnn, device, X_seq_tensor, y_bin):
     X_wt = X_seq_tensor[y_bin == 1].clone().detach().to(device)
@@ -152,8 +141,9 @@ def main():
     with torch.no_grad():
         p_tf_bef = model_tf(X_tf_t).squeeze(-1).cpu().numpy()
     # XGBoost
-    X_tab_bef = extract_features_from_seq_batch(X_test_seq)
-    p_xgb_bef = clf_xgb.predict_proba(X_tab_bef)[:, 1]
+    tab_data = np.load(os.path.join(PROCESSED_DIR, "tabular_dataset.npz"), allow_pickle=True)
+    X_test_tab = tab_data["X_test"]
+    p_xgb_bef = clf_xgb.predict_proba(X_test_tab)[:, 1]
     
     saliency_before = compute_saliency(model_cnn, device, torch.from_numpy(X_test_seq), y_test)
     
@@ -176,8 +166,8 @@ def main():
     X_def_tf_t = torch.from_numpy(X_test_defended).to(device)
     with torch.no_grad():
         p_tf_aft = model_tf(X_def_tf_t).squeeze(-1).cpu().numpy()
-    # XGBoost
-    X_tab_aft = extract_features_from_seq_batch(X_test_defended)
+    # XGBoost with exact features recomputed from morphed flows
+    X_tab_aft = extract_features_from_seq_matrix(X_test_defended)
     p_xgb_aft = clf_xgb.predict_proba(X_tab_aft)[:, 1]
     
     saliency_after = compute_saliency(model_cnn, device, torch.from_numpy(X_test_defended), y_test)
@@ -248,7 +238,6 @@ r"""\hline
     # -------------------------------------------------------------
     # PLOTS
     # -------------------------------------------------------------
-    # Plot 1: Before vs After Metrics Bar Chart (1D-CNN vs Transformer vs XGBoost)
     plt.figure(figsize=(11, 6))
     models_list = ["1D-CNN", "Flow-Transformer", "XGBoost"]
     recalls_bef = [m_cnn_bef['rec']*100, m_tf_bef['rec']*100, m_xgb_bef['rec']*100]
@@ -275,7 +264,7 @@ r"""\hline
     plt.savefig(os.path.join(PLOT_DIR, "before_vs_after_metrics.png"), dpi=300)
     plt.close()
     
-    # Plot 2: Before vs After Saliency Map Comparison (XAI)
+    # Plot 2: Saliency map
     plt.figure(figsize=(12, 6))
     pkts = np.arange(1, 41)
     plt.plot(pkts, saliency_before[:40], marker='o', linewidth=2.5, color='#d62728', label='PŘED OBRANOU: Špička na paketech 1–15 (Circuit Handshake Burst)')
@@ -289,7 +278,7 @@ r"""\hline
     plt.savefig(os.path.join(PLOT_DIR, "before_vs_after_saliency.png"), dpi=300)
     plt.close()
     
-    # Plot 3: Spectral Distribution Comparison (Before vs After)
+    # Plot 3: Spectral Distribution
     plt.figure(figsize=(12, 6))
     orig_lens = np.abs(X_test_seq[y_test == 1, :, 0]).flatten() * 1500.0
     orig_lens = orig_lens[orig_lens > 10.0]

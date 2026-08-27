@@ -12,19 +12,21 @@ PROCESSED_DIR = "data/processed"
 RAW_PCAP_DIR = "data/raw_pcap"
 
 CLASS_MAPPING = {
-    "webtunnel": 1,         # Target circumvention class
-    "websocket_ticker": 0,  # Hard Negative 1
-    "websocket_chat": 0,    # Hard Negative 2
-    "video_streaming": 0,   # Hard Negative 3
-    "web_assets": 0,        # Hard Negative 4
+    "webtunnel": 1,             # Target circumvention class
+    "direct_web_browsing": 0,  # Hard Negative 1 (Direct Browsing)
+    "websocket_ticker": 0,      # Hard Negative 2
+    "websocket_chat": 0,        # Hard Negative 3
+    "video_streaming": 0,       # Hard Negative 4
+    "web_assets": 0,            # Hard Negative 5
 }
 
 MULTI_CLASS_MAPPING = {
     "webtunnel": 0,
-    "websocket_ticker": 1,
-    "websocket_chat": 2,
-    "video_streaming": 3,
-    "web_assets": 4,
+    "direct_web_browsing": 1,
+    "websocket_ticker": 2,
+    "websocket_chat": 3,
+    "video_streaming": 4,
+    "web_assets": 5,
 }
 
 def process_single_pcap(pcap_path: str, post_handshake_only: bool = False):
