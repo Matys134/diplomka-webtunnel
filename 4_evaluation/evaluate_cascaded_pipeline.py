@@ -45,35 +45,50 @@ def benchmark_cascaded_pipeline(tau_low=0.05, tau_high=0.95):
     model_cnn.load_state_dict(torch.load("3_models/saved_models/1d_cnn_best.pt", map_location=device))
     model_cnn.eval()
     
-    # 3. Micro-benchmark L1 Latency (XGBoost CPU)
-    # Warmup
+    # 3. Benchmark L1 Latency (XGBoost CPU): Single-flow vs Batch
+    # Batch throughput
     for _ in range(5):
         _ = clf_xgb.predict_proba(X_test_tab)
     t0 = time.perf_counter_ns()
     p_xgb = clf_xgb.predict_proba(X_test_tab)[:, 1]
     t1 = time.perf_counter_ns()
-    lat_l1_per_flow_ms = ((t1 - t0) / 1e6) / n_samples
+    lat_l1_batch_per_flow_ms = ((t1 - t0) / 1e6) / n_samples
+    
+    # Single-flow latency
+    n_iters = min(250, n_samples)
+    t0 = time.perf_counter_ns()
+    for i in range(n_iters):
+        _ = clf_xgb.predict_proba(X_test_tab[i:i+1])
+    t1 = time.perf_counter_ns()
+    single_lat_xgb_us = ((t1 - t0) / 1000.0) / n_iters
     
     # 4. Determine Escalation to L2
-    # Escalation condition: uncertainty zone [tau_low, tau_high]
     escalate_mask = (p_xgb >= tau_low) & (p_xgb <= tau_high)
     n_escalated = int(np.sum(escalate_mask))
     escalation_rate_pct = (n_escalated / n_samples) * 100.0
     
-    # 5. Micro-benchmark L2 Latency (1D-CNN GPU)
+    # 5. Benchmark L2 Latency (1D-CNN GPU): Single-flow vs Batch
     X_seq_t = torch.from_numpy(X_test_seq).to(device)
-    # Warmup
     with torch.no_grad():
         for _ in range(5):
             _ = model_cnn(X_seq_t)
-            
-    torch.cuda.synchronize() if device.type == "cuda" else None
+    if device.type == "cuda": torch.cuda.synchronize()
+    
     t0 = time.perf_counter_ns()
     with torch.no_grad():
         p_cnn = model_cnn(X_seq_t).squeeze(-1).cpu().numpy()
-    torch.cuda.synchronize() if device.type == "cuda" else None
+    if device.type == "cuda": torch.cuda.synchronize()
     t1 = time.perf_counter_ns()
-    lat_l2_per_flow_ms = ((t1 - t0) / 1e6) / n_samples
+    lat_l2_batch_per_flow_ms = ((t1 - t0) / 1e6) / n_samples
+    
+    # Single-flow GPU latency
+    t0 = time.perf_counter_ns()
+    with torch.no_grad():
+        for i in range(n_iters):
+            _ = model_cnn(X_seq_t[i:i+1])
+            if device.type == "cuda": torch.cuda.synchronize()
+    t1 = time.perf_counter_ns()
+    single_lat_cnn_us = ((t1 - t0) / 1000.0) / n_iters
     
     # 6. Combined Cascade Decision
     p_cascade = p_xgb.copy()
@@ -85,11 +100,12 @@ def benchmark_cascaded_pipeline(tau_low=0.05, tau_high=0.95):
     preds_cnn = (p_cnn >= 0.5).astype(int)
     
     # 7. Compute Cascaded System Latency & Throughput
-    # Average latency per flow = Lat_L1 + (escalation_rate * Lat_L2)
-    lat_cascade_per_flow_ms = lat_l1_per_flow_ms + (escalation_rate_pct / 100.0) * lat_l2_per_flow_ms
-    throughput_cascade = 1000.0 / max(lat_cascade_per_flow_ms, 1e-6)
-    throughput_xgb = 1000.0 / max(lat_l1_per_flow_ms, 1e-6)
-    throughput_cnn = 1000.0 / max(lat_l2_per_flow_ms, 1e-6)
+    lat_cascade_batch_per_flow_ms = lat_l1_batch_per_flow_ms + (escalation_rate_pct / 100.0) * lat_l2_batch_per_flow_ms
+    single_lat_cascade_us = single_lat_xgb_us + (escalation_rate_pct / 100.0) * single_lat_cnn_us
+    
+    throughput_cascade = 1000.0 / max(lat_cascade_batch_per_flow_ms, 1e-6)
+    throughput_xgb = 1000.0 / max(lat_l1_batch_per_flow_ms, 1e-6)
+    throughput_cnn = 1000.0 / max(lat_l2_batch_per_flow_ms, 1e-6)
     
     # Metrics
     def get_metrics(y_true, probs, preds):
@@ -112,8 +128,9 @@ def benchmark_cascaded_pipeline(tau_low=0.05, tau_high=0.95):
     print(f"Celkový počet testovacích toků: {n_samples}")
     print(f"Odbaveno na L1 filtru (CPU XGBoost): {n_samples - n_escalated} ({100.0 - escalation_rate_pct:.1f} %)")
     print(f"Eskalováno na L2 hloubkovou inspekci (GPU 1D-CNN): {n_escalated} ({escalation_rate_pct:.1f} %)")
-    print(f"Průměrná latence kaskády: {lat_cascade_per_flow_ms*1000.0:.2f} µs ({lat_cascade_per_flow_ms:.5f} ms)")
-    print(f"Efektivní propustnost kaskády: {throughput_cascade:,.0f} flows/sec")
+    print(f"Single-flow latence L1 (XGBoost): {single_lat_xgb_us:.2f} µs | L2 (1D-CNN): {single_lat_cnn_us:.2f} µs")
+    print(f"Efektivní single-flow latence kaskády: {single_lat_cascade_us:.2f} µs")
+    print(f"Efektivní batch propustnost kaskády: {throughput_cascade:,.0f} flows/sec")
     print(f"Přesnost (Accuracy): {m_cas['acc']*100:.2f} % | PR-AUC: {m_cas['pr_auc']:.4f}")
     print("="*85)
     
@@ -122,14 +139,14 @@ def benchmark_cascaded_pipeline(tau_low=0.05, tau_high=0.95):
 \centering
 \caption{Empirické zhodnocení dvoustupňové kaskádové architektury (L1 CPU $\rightarrow$ L2 GPU)}
 \label{tab:cascaded_pipeline}
-\begin{tabular}{lccccc}
+\begin{tabular}{lcccccc}
 \hline
-\textbf{Úroveň / Architektura} & \textbf{Hardware} & \textbf{Accuracy} & \textbf{PR-AUC} & \textbf{Latence/flow} & \textbf{Propustnost} \\
+\textbf{Úroveň / Architektura} & \textbf{Hardware} & \textbf{Accuracy} & \textbf{PR-AUC} & \textbf{Single-flow Lat.} & \textbf{Batch Propustnost} \\
 \hline
-Samostatný L1 filtr (XGBoost) & Ryzen 9800X3D & """ + f"{m_xgb['acc']*100:.1f}\\% & {m_xgb['pr_auc']:.4f} & {lat_l1_per_flow_ms:.5f} ms & {throughput_xgb:,.0f} flows/s" + r""" \\
-Samostatná L2 inspekce (1D-CNN) & RTX 5070 Ti & """ + f"{m_cnn['acc']*100:.1f}\\% & {m_cnn['pr_auc']:.4f} & {lat_l2_per_flow_ms:.5f} ms & {throughput_cnn:,.0f} flows/s" + r""" \\
+Samostatný L1 filtr (XGBoost) & Ryzen 9800X3D & """ + f"{m_xgb['acc']*100:.1f}\\% & {m_xgb['pr_auc']:.4f} & {single_lat_xgb_us:.1f}\\,\\mu\\text{{s}} & {throughput_xgb:,.0f} flows/s" + r""" \\
+Samostatná L2 inspekce (1D-CNN) & RTX 5070 Ti & """ + f"{m_cnn['acc']*100:.1f}\\% & {m_cnn['pr_auc']:.4f} & {single_lat_cnn_us:.1f}\\,\\mu\\text{{s}} & {throughput_cnn:,.0f} flows/s" + r""" \\
 \hline
-\textbf{Dvoustupňová kaskáda (Hybrid)} & \textbf{CPU + GPU} & \textbf{""" + f"{m_cas['acc']*100:.1f}\\%" + r"""} & \textbf{""" + f"{m_cas['pr_auc']:.4f}" + r"""} & \textbf{""" + f"{lat_cascade_per_flow_ms:.5f} ms" + r"""} & \textbf{""" + f"{throughput_cascade:,.0f} flows/s" + r"""} \\
+\textbf{Dvoustupňová kaskáda (Hybrid)} & \textbf{CPU + GPU} & \textbf{""" + f"{m_cas['acc']*100:.1f}\\%" + r"""} & \textbf{""" + f"{m_cas['pr_auc']:.4f}" + r"""} & \textbf{""" + f"{single_lat_cascade_us:.1f}\\,\\mu\\text{{s}}" + r"""} & \textbf{""" + f"{throughput_cascade:,.0f} flows/s" + r"""} \\
 \hline
 \multicolumn{6}{l}{\footnotesize Pásmo nejistoty pro eskalaci na GPU: $p \in [0.05, 0.95]$; Míra odbavení na L1 (CPU): """ + f"{100.0 - escalation_rate_pct:.1f}\\%" + r"""} \\
 \hline
@@ -173,10 +190,21 @@ Samostatná L2 inspekce (1D-CNN) & RTX 5070 Ti & """ + f"{m_cnn['acc']*100:.1f}\
     print(f"[OK] Saved {PLOT_DIR}/cascaded_pipeline_throughput.png")
     
     res_dict = {
-        "l1_xgb": {"latency_ms": lat_l1_per_flow_ms, "throughput_flows_sec": throughput_xgb, "metrics": m_xgb},
-        "l2_cnn": {"latency_ms": lat_l2_per_flow_ms, "throughput_flows_sec": throughput_cnn, "metrics": m_cnn},
+        "l1_xgb": {
+            "single_latency_us": single_lat_xgb_us,
+            "batch_latency_ms": lat_l1_batch_per_flow_ms,
+            "throughput_flows_sec": throughput_xgb,
+            "metrics": m_xgb
+        },
+        "l2_cnn": {
+            "single_latency_us": single_lat_cnn_us,
+            "batch_latency_ms": lat_l2_batch_per_flow_ms,
+            "throughput_flows_sec": throughput_cnn,
+            "metrics": m_cnn
+        },
         "cascaded_pipeline": {
-            "latency_ms": lat_cascade_per_flow_ms,
+            "single_latency_us": single_lat_cascade_us,
+            "batch_latency_ms": lat_cascade_batch_per_flow_ms,
             "throughput_flows_sec": throughput_cascade,
             "escalation_rate_pct": escalation_rate_pct,
             "metrics": m_cas

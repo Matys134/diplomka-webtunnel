@@ -1,37 +1,37 @@
 {
     "model_name": "XGBoost",
-    "training_time_sec": 0.3497028350830078,
-    "inference_latency_ms": 0.005956411361694336,
-    "throughput_flows_sec": 167886.3226994356,
-    "optimal_threshold": 0.997797966003418,
+    "training_time_sec": 0.21998095512390137,
+    "inference_latency_ms": 0.008481025695800781,
+    "throughput_flows_sec": 117910.26650174294,
+    "optimal_threshold": 0.7661123275756836,
     "metrics": {
-        "accuracy": 0.9802816901408451,
-        "precision": 1.0,
-        "recall": 0.8833333333333333,
-        "f1_score": 0.9380530973451328,
-        "roc_auc": 0.9998870056497176,
-        "pr_auc": 0.9994623655913979
+        "accuracy": 0.9907834101382489,
+        "precision": 0.9743589743589743,
+        "recall": 0.9743589743589743,
+        "f1_score": 0.9743589743589743,
+        "roc_auc": 0.9998559492941516,
+        "pr_auc": 0.9993589743589744
     },
     "low_fpr_calibration": {
         "fpr_0.01": {
-            "threshold": 0.15413829684257507,
-            "precision": 0.9523809523809523,
+            "threshold": 0.040478985756635666,
+            "precision": 0.9512195121951219,
             "recall": 1.0,
-            "tp": 60,
-            "fp": 3
+            "tp": 39,
+            "fp": 2
         },
         "fpr_0.001": {
-            "threshold": 0.97598797082901,
-            "precision": 0.9833333333333333,
-            "recall": 0.9833333333333333,
-            "tp": 59,
+            "threshold": 0.6538511514663696,
+            "precision": 0.9743589743589743,
+            "recall": 0.9743589743589743,
+            "tp": 38,
             "fp": 1
         },
         "fpr_0.0001": {
-            "threshold": 0.9818134307861328,
-            "precision": 0.9833333333333333,
-            "recall": 0.9833333333333333,
-            "tp": 59,
+            "threshold": 0.7712964415550232,
+            "precision": 0.9743589743589743,
+            "recall": 0.9743589743589743,
+            "tp": 38,
             "fp": 1
         }
     }

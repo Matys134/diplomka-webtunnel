@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-requests \
     python3-socks \
     python3-websockets \
+    python3-httpx \
+    python3-h2 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /webtunnel-client /usr/local/bin/webtunnel-client

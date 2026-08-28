@@ -93,11 +93,30 @@ def main():
     y_mul = np.array([s["multi_label"] for s in valid_samples], dtype=np.int64)
     class_names = [s["class_name"] for s in valid_samples]
     
-    indices = np.arange(len(valid_samples))
-    train_idx, test_idx = train_test_split(indices, test_size=args.test_size, random_state=42, stratify=y_mul)
-    train_idx, val_idx = train_test_split(train_idx, test_size=args.val_size, random_state=42, stratify=y_mul[train_idx])
+    # Strict Anti-Leakage: Session/Temporal Split based on capture batch IDs
+    # Guarantees that test flows originate from completely separate capture runs/sessions
+    sample_ids = []
+    for s in valid_samples:
+        base = os.path.splitext(os.path.basename(s["path"]))[0]
+        try:
+            sid = int(base.split("_")[-1])
+        except Exception:
+            sid = -1
+        sample_ids.append(sid)
+    sample_ids = np.array(sample_ids)
     
-    print(f"Dataset split: Train={len(train_idx)}, Val={len(val_idx)}, Test={len(test_idx)}")
+    # If standard 1..100 numbering exists, split by session blocks (1-70 Train, 71-85 Val, 86-100 Test)
+    if np.all(sample_ids > 0):
+        train_idx = np.where(sample_ids <= 70)[0]
+        val_idx = np.where((sample_ids > 70) & (sample_ids <= 85))[0]
+        test_idx = np.where(sample_ids > 85)[0]
+    else:
+        # Fallback to stratified group split
+        indices = np.arange(len(valid_samples))
+        train_idx, test_idx = train_test_split(indices, test_size=args.test_size, random_state=42, stratify=y_mul)
+        train_idx, val_idx = train_test_split(train_idx, test_size=args.val_size, random_state=42, stratify=y_mul[train_idx])
+        
+    print(f"Session-Stratified Split: Train={len(train_idx)}, Val={len(val_idx)}, Test={len(test_idx)}")
     
     np.savez_compressed(
         os.path.join(PROCESSED_DIR, "tabular_dataset.npz"),

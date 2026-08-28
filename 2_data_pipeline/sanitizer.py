@@ -63,25 +63,50 @@ def extract_raw_packets_from_pcap(pcap_path: str, post_handshake_only: bool = Fa
             src_ip = ip.src
             dst_ip = ip.dst
             
-            # Establish client IP from initial SYN or first packet
+            # Establish client IP from initial packet
             if client_ip is None:
                 client_ip = src_ip
                 
             direction = 1 if src_ip == client_ip else -1
-            pkt_len = len(ip)  # L3 packet length (clamped to MTU 1500)
+            
+            # Anti-Leakage: Extract purely L7 Application Data payload length
+            # Strips L2 MAC, L3 IP, and L4 TCP/UDP variable options (Timestamps, SACK, Window Scale)
+            if isinstance(ip.data, (dpkt.tcp.TCP, dpkt.udp.UDP)):
+                payload = ip.data.data
+                pkt_len = len(payload)
+            else:
+                continue
+                
+            # Filter pure TCP ACKs (0-byte payload) to eliminate local OS delayed-ACK timer artifacts
+            if pkt_len == 0:
+                continue
+                
             pkt_len = min(pkt_len, 1500)
-            
             signed_len = direction * pkt_len
-            packets.append((rel_ts, signed_len))
+            packets.append((rel_ts, signed_len, payload))
             
-    # Post-handshake isolation (skip first 15 packets to eliminate TCP 3-way handshake & TLS 1.3 Key Exchange)
-    if post_handshake_only and len(packets) > 15:
-        packets = packets[15:]
-        if packets:
-            base_t = packets[0][0]
-            packets = [(t - base_t, l) for t, l in packets]
+    # Post-handshake isolation: Dynamic TLS 1.3 Application Data (ContentType 0x17) detection
+    if post_handshake_only:
+        first_app_data_idx = None
+        for idx, (t, signed_l, raw_payload) in enumerate(packets):
+            # TLS Record header: ContentType 0x17 (Application Data), Version 0x03 (TLS)
+            if len(raw_payload) >= 3 and raw_payload[0] == 0x17 and raw_payload[1] == 0x03:
+                first_app_data_idx = idx
+                break
+                
+        if first_app_data_idx is not None:
+            packets = packets[first_app_data_idx:]
+        elif len(packets) > 10:
+            packets = packets[10:]
             
-    return packets
+    # Return sanitized (relative_time, signed_length) tuples
+    if packets:
+        base_t = packets[0][0]
+        cleaned_packets = [(t - base_t, l) for t, l, _ in packets]
+    else:
+        cleaned_packets = []
+        
+    return cleaned_packets
 
 def compute_flow_statistics(packets: List[Tuple[float, int]]) -> np.ndarray:
     """Computes 48 statistical flow features for tree models (XGBoost/RandomForest)."""

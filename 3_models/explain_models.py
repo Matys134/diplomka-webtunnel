@@ -103,11 +103,55 @@ def explain_1d_cnn_saliency():
     plt.close()
     print(f"[OK] Saved {PLOT_DIR}/1d_cnn_saliency_map.png")
 
+def explain_transformer_attention():
+    print("--- Running Flow-Transformer Attention & Sequence Saliency ---")
+    from train_transformer import WebTunnelTransformer
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    data = np.load(os.path.join(PROCESSED_DIR, "sequence_dataset.npz"), allow_pickle=True)
+    X_test = data["X_test"] # (B, 200, 2)
+    y_test = data["y_test"]
+    
+    wt_indices = np.where(y_test == 1)[0]
+    if len(wt_indices) == 0:
+        return
+        
+    model = WebTunnelTransformer(in_features=2, d_model=64, nhead=4, num_layers=2).to(device)
+    model.load_state_dict(torch.load(os.path.join(MODEL_DIR, "transformer_best.pt"), map_location=device))
+    model.eval()
+    
+    sample_tensor = torch.from_numpy(X_test[wt_indices]).to(device)
+    sample_tensor.requires_grad = True
+    
+    preds = model(sample_tensor).squeeze(-1)
+    loss = preds.sum()
+    loss.backward()
+    
+    grads = sample_tensor.grad.cpu().numpy() # (N, 200, 2)
+    length_grads = np.abs(grads[:, :, 0])    # Token length gradients
+    mean_attention = np.mean(length_grads, axis=0)
+    
+    plt.figure(figsize=(12, 5))
+    packet_indices = np.arange(1, len(mean_attention) + 1)
+    plt.plot(packet_indices, mean_attention, color="#d62728", linewidth=2.0, label="Transformer Token Saliency / Self-Attention Impact")
+    plt.fill_between(packet_indices, 0, mean_attention, alpha=0.3, color="#d62728")
+    plt.title("Flow-Transformer Attention Map: Token Attribution Across Packet Sequence", fontsize=13, fontweight="bold")
+    plt.xlabel("Packet Token Index in Flow (Packets 1-200)", fontsize=12)
+    plt.ylabel("Self-Attention Attribution Weight", fontsize=12)
+    plt.axvspan(1, 15, color="orange", alpha=0.2, label="Tor Negotiation & Initial Bursts")
+    plt.legend(fontsize=10)
+    plt.xlim(1, 100)
+    plt.tight_layout()
+    plt.savefig(os.path.join(PLOT_DIR, "transformer_attention_map.png"), dpi=300)
+    plt.close()
+    print(f"[OK] Saved {PLOT_DIR}/transformer_attention_map.png")
+
 def main():
     os.makedirs(PLOT_DIR, exist_ok=True)
     sns.set_theme(style="whitegrid")
     explain_xgboost()
     explain_1d_cnn_saliency()
+    explain_transformer_attention()
 
 if __name__ == "__main__":
     main()

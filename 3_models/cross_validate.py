@@ -32,7 +32,7 @@ def cv_xgboost(X_tab, y_bin, y_mul, n_splits=5):
         X_te, y_te = X_tab[test_idx], y_bin[test_idx]
         
         clf = xgb.XGBClassifier(
-            n_estimators=200, max_depth=5, learning_rate=0.03,
+            n_estimators=300, max_depth=6, learning_rate=0.05,
             subsample=0.8, colsample_bytree=0.8, eval_metric="logloss", random_state=42
         )
         clf.fit(X_tr, y_tr, verbose=False)
@@ -72,8 +72,9 @@ def cv_1d_cnn(X_seq, y_bin, y_mul, n_splits=5):
         model = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
         criterion = FocalLoss(alpha=0.25, gamma=2.0)
         optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30, eta_min=1e-5)
         
-        for epoch in range(25):
+        for epoch in range(30):
             model.train()
             for bx, by in train_loader:
                 bx, by = bx.to(device), by.to(device)
@@ -82,6 +83,7 @@ def cv_1d_cnn(X_seq, y_bin, y_mul, n_splits=5):
                 loss = criterion(preds, by)
                 loss.backward()
                 optimizer.step()
+            scheduler.step()
                 
         model.eval()
         all_probs = []
@@ -124,9 +126,10 @@ def cv_transformer(X_seq, y_bin, y_mul, n_splits=5):
         
         model = WebTunnelTransformer(in_features=2, d_model=64, nhead=4, num_layers=2).to(device)
         criterion = FocalLoss(alpha=0.25, gamma=2.0)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-4)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30, eta_min=1e-5)
         
-        for epoch in range(20):
+        for epoch in range(30):
             model.train()
             for bx, by in train_loader:
                 bx, by = bx.to(device), by.to(device)
@@ -135,6 +138,7 @@ def cv_transformer(X_seq, y_bin, y_mul, n_splits=5):
                 loss = criterion(preds, by)
                 loss.backward()
                 optimizer.step()
+            scheduler.step()
                 
         model.eval()
         all_probs = []

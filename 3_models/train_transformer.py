@@ -99,6 +99,9 @@ def main():
     
     epochs = 40
     best_val_loss = float("inf")
+    patience = 12
+    patience_counter = 0
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
     start_train_t = time.time()
     
     for epoch in range(epochs):
@@ -113,6 +116,7 @@ def main():
             optimizer.step()
             train_loss += loss.item() * len(by)
         train_loss /= len(train_dataset)
+        scheduler.step()
         
         # Validation
         model.eval()
@@ -128,6 +132,12 @@ def main():
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(model.state_dict(), os.path.join(MODEL_DIR, "transformer_best.pt"))
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"Early stopping triggered at epoch {epoch+1}.")
+                break
             
     train_time = time.time() - start_train_t
     print(f"[OK] Training finished in {train_time:.2f}s. Best Val Loss: {best_val_loss:.4f}")

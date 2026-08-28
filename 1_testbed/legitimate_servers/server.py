@@ -86,5 +86,17 @@ if __name__ == "__main__":
     ssl_key = "/app/certs/server.key" if os.path.exists("/app/certs/server.key") else None
     ssl_cert = "/app/certs/server.crt" if os.path.exists("/app/certs/server.crt") else None
     
-    # Run with TLS on port 8443
-    uvicorn.run(app, host="0.0.0.0", port=8443, ssl_keyfile=ssl_key, ssl_certfile=ssl_cert, log_level="warning")
+    # Run with HTTP/2 and WebSockets over TLS on port 8443
+    from hypercorn.config import Config
+    from hypercorn.asyncio import serve
+    
+    config = Config()
+    config.bind = ["0.0.0.0:8443"]
+    if ssl_key and ssl_cert:
+        config.keyfile = ssl_key
+        config.certfile = ssl_cert
+        config.alpn_protocols = ["h2", "http/1.1"]
+    config.accesslog = "-"
+    config.loglevel = "WARNING"
+    
+    asyncio.run(serve(app, config))
