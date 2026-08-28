@@ -38,8 +38,14 @@ def benchmark_cascaded_pipeline(tau_low=0.05, tau_high=0.95):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # 2. Load Models
-    clf_xgb = xgb.XGBClassifier()
-    clf_xgb.load_model("3_models/saved_models/xgboost_baseline.json")
+    import joblib
+    xgb_joblib_path = "3_models/saved_models/xgboost_baseline.joblib"
+    if os.path.exists(xgb_joblib_path):
+        clf_xgb = joblib.load(xgb_joblib_path)
+    else:
+        clf_xgb = xgb.XGBClassifier()
+        clf_xgb.load_model("3_models/saved_models/xgboost_baseline.json")
+        clf_xgb.classes_ = np.array([0, 1])
     
     model_cnn = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
     model_cnn.load_state_dict(torch.load("3_models/saved_models/1d_cnn_best.pt", map_location=device))
@@ -67,25 +73,34 @@ def benchmark_cascaded_pipeline(tau_low=0.05, tau_high=0.95):
     n_escalated = int(np.sum(escalate_mask))
     escalation_rate_pct = (n_escalated / n_samples) * 100.0
     
-    # 5. Benchmark L2 Latency (1D-CNN GPU): Single-flow vs Batch
-    X_seq_t = torch.from_numpy(X_test_seq).to(device)
+    # 5. Benchmark L2 Latency (1D-CNN GPU): Batched DataLoader inference
+    from torch.utils.data import TensorDataset, DataLoader
+    X_seq_t = torch.from_numpy(X_test_seq)
+    loader_l2 = DataLoader(TensorDataset(X_seq_t), batch_size=64, shuffle=False)
+    
+    # Warmup
     with torch.no_grad():
-        for _ in range(5):
-            _ = model_cnn(X_seq_t)
+        for _ in range(3):
+            for bx, in loader_l2:
+                _ = model_cnn(bx.to(device))
     if device.type == "cuda": torch.cuda.synchronize()
     
     t0 = time.perf_counter_ns()
+    all_p_cnn = []
     with torch.no_grad():
-        p_cnn = model_cnn(X_seq_t).squeeze(-1).cpu().numpy()
+        for bx, in loader_l2:
+            preds_batch = model_cnn(bx.to(device)).squeeze(-1).cpu().numpy()
+            all_p_cnn.extend(preds_batch)
     if device.type == "cuda": torch.cuda.synchronize()
     t1 = time.perf_counter_ns()
+    p_cnn = np.array(all_p_cnn)
     lat_l2_batch_per_flow_ms = ((t1 - t0) / 1e6) / n_samples
     
     # Single-flow GPU latency
     t0 = time.perf_counter_ns()
     with torch.no_grad():
         for i in range(n_iters):
-            _ = model_cnn(X_seq_t[i:i+1])
+            _ = model_cnn(X_seq_t[i:i+1].to(device))
             if device.type == "cuda": torch.cuda.synchronize()
     t1 = time.perf_counter_ns()
     single_lat_cnn_us = ((t1 - t0) / 1000.0) / n_iters

@@ -125,9 +125,12 @@ def main():
     
     low_fpr_results = calculate_precision_at_fixed_fpr(y_test, test_probs)
     
+    import joblib
     model_save_path = os.path.join(MODEL_DIR, "xgboost_baseline.json")
     clf.save_model(model_save_path)
-    print(f"[OK] Model saved to {model_save_path}")
+    joblib_save_path = os.path.join(MODEL_DIR, "xgboost_baseline.joblib")
+    joblib.dump(clf, joblib_save_path)
+    print(f"[OK] Model saved to {model_save_path} and {joblib_save_path}")
     
     results = {
         "model_name": "XGBoost",

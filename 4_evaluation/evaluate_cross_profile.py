@@ -17,7 +17,7 @@ from concurrent.futures import ProcessPoolExecutor
 sys.path.append("2_data_pipeline")
 sys.path.append("3_models")
 from sanitizer import extract_raw_packets_from_pcap, compute_flow_statistics, build_sequence_tensor, FEATURE_NAMES
-from train_1d_cnn import WebTunnel1DCNN
+from train_1d_cnn import WebTunnel1DCNN, FocalLoss
 
 RAW_PCAP_DIR = "data/raw_pcap"
 TABLE_DIR = "0_thesis_text/tables"
@@ -71,7 +71,7 @@ def train_and_eval_1d_cnn(X_train_seq, y_train_seq, test_sets, device, epochs=25
     # Train 1D-CNN on X_train_seq
     model = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
-    criterion = nn.BCELoss()
+    criterion = FocalLoss(alpha=0.25, gamma=2.0)
     
     # Transpose for PyTorch (N, 2, 200)
     X_train_t = torch.from_numpy(np.transpose(X_train_seq, (0, 2, 1))).float()

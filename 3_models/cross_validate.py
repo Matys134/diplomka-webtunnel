@@ -7,7 +7,7 @@ import xgboost as xgb
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     roc_auc_score, average_precision_score
@@ -21,13 +21,13 @@ from train_transformer import WebTunnelTransformer
 PROCESSED_DIR = "data/processed"
 EVAL_DIR = "4_evaluation"
 
-def cv_xgboost(X_tab, y_bin, y_mul, n_splits=5):
-    print(f"\n=== Running {n_splits}-Fold Stratified CV for XGBoost ===")
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+def cv_xgboost(X_tab, y_bin, y_mul, groups, n_splits=5):
+    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for XGBoost ===")
+    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
     
     metrics = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
     
-    for fold, (train_idx, test_idx) in enumerate(skf.split(X_tab, y_mul)):
+    for fold, (train_idx, test_idx) in enumerate(sgkf.split(X_tab, y_mul, groups=groups)):
         X_tr, y_tr = X_tab[train_idx], y_bin[train_idx]
         X_te, y_te = X_tab[test_idx], y_bin[test_idx]
         
@@ -53,16 +53,16 @@ def cv_xgboost(X_tab, y_bin, y_mul, n_splits=5):
         print(f"  XGBoost {k.upper():<8}: {np.mean(v)*100:.2f}% +/- {np.std(v)*100:.2f}%")
     return summary
 
-def cv_1d_cnn(X_seq, y_bin, y_mul, n_splits=5):
-    print(f"\n=== Running {n_splits}-Fold Stratified CV for 1D-CNN (CUDA) ===")
+def cv_1d_cnn(X_seq, y_bin, y_mul, groups, n_splits=5):
+    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for 1D-CNN (CUDA) ===")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
     
     # Shape (N, 2, 200)
     X_seq_t = np.transpose(X_seq, (0, 2, 1))
     metrics = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
     
-    for fold, (train_idx, test_idx) in enumerate(skf.split(X_seq_t, y_mul)):
+    for fold, (train_idx, test_idx) in enumerate(sgkf.split(X_seq_t, y_mul, groups=groups)):
         X_tr, y_tr = torch.from_numpy(X_seq_t[train_idx]), torch.from_numpy(y_bin[train_idx])
         X_te, y_te = torch.from_numpy(X_seq_t[test_idx]), torch.from_numpy(y_bin[test_idx])
         
@@ -110,14 +110,14 @@ def cv_1d_cnn(X_seq, y_bin, y_mul, n_splits=5):
         print(f"  1D-CNN  {k.upper():<8}: {np.mean(v)*100:.2f}% +/- {np.std(v)*100:.2f}%")
     return summary
 
-def cv_transformer(X_seq, y_bin, y_mul, n_splits=5):
-    print(f"\n=== Running {n_splits}-Fold Stratified CV for Flow-Transformer (CUDA) ===")
+def cv_transformer(X_seq, y_bin, y_mul, groups, n_splits=5):
+    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for Flow-Transformer (CUDA) ===")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
     
     metrics = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
     
-    for fold, (train_idx, test_idx) in enumerate(skf.split(X_seq, y_mul)):
+    for fold, (train_idx, test_idx) in enumerate(sgkf.split(X_seq, y_mul, groups=groups)):
         X_tr, y_tr = torch.from_numpy(X_seq[train_idx]), torch.from_numpy(y_bin[train_idx])
         X_te, y_te = torch.from_numpy(X_seq[test_idx]), torch.from_numpy(y_bin[test_idx])
         
@@ -175,10 +175,16 @@ def main():
     y_bin = np.concatenate([tab_data["y_train"], tab_data["y_val"], tab_data["y_test"]], axis=0)
     y_mul = np.concatenate([tab_data["y_train_mul"], tab_data["y_val_mul"], tab_data["y_test_mul"]], axis=0)
     
-    print(f"Total dataset size for Cross-Validation: {len(y_bin)} samples.")
-    xgb_cv = cv_xgboost(X_tab, y_bin, y_mul, n_splits=5)
-    cnn_cv = cv_1d_cnn(X_seq, y_bin, y_mul, n_splits=5)
-    tf_cv = cv_transformer(X_seq, y_bin, y_mul, n_splits=5)
+    if "sample_ids_train" in tab_data:
+        groups = np.concatenate([tab_data["sample_ids_train"], tab_data["sample_ids_val"], tab_data["sample_ids_test"]], axis=0)
+    else:
+        # Fallback: create group blocks of size 20
+        groups = np.arange(len(y_bin)) // 20
+        
+    print(f"Total dataset size for Cross-Validation: {len(y_bin)} samples across {len(np.unique(groups))} unique session groups.")
+    xgb_cv = cv_xgboost(X_tab, y_bin, y_mul, groups, n_splits=5)
+    cnn_cv = cv_1d_cnn(X_seq, y_bin, y_mul, groups, n_splits=5)
+    tf_cv = cv_transformer(X_seq, y_bin, y_mul, groups, n_splits=5)
     
     cv_results = {
         "xgboost_cv_5fold": xgb_cv,

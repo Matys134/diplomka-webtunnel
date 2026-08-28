@@ -1,8 +1,8 @@
 {
     "model_name": "XGBoost",
-    "training_time_sec": 0.21998095512390137,
-    "inference_latency_ms": 0.008481025695800781,
-    "throughput_flows_sec": 117910.26650174294,
+    "training_time_sec": 0.36495494842529297,
+    "inference_latency_ms": 0.0003523826599121094,
+    "throughput_flows_sec": 2837824.086603518,
     "optimal_threshold": 0.7661123275756836,
     "metrics": {
         "accuracy": 0.9907834101382489,

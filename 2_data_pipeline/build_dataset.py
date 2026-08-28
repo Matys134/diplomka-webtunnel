@@ -123,6 +123,8 @@ def main():
         X_train=X_tab[train_idx], y_train=y_bin[train_idx], y_train_mul=y_mul[train_idx],
         X_val=X_tab[val_idx], y_val=y_bin[val_idx], y_val_mul=y_mul[val_idx],
         X_test=X_tab[test_idx], y_test=y_bin[test_idx], y_test_mul=y_mul[test_idx],
+        sample_ids_train=sample_ids[train_idx], sample_ids_val=sample_ids[val_idx], sample_ids_test=sample_ids[test_idx],
+        sample_ids_all=sample_ids,
         feature_names=FEATURE_NAMES
     )
     
@@ -130,7 +132,9 @@ def main():
         os.path.join(PROCESSED_DIR, "sequence_dataset.npz"),
         X_train=X_seq[train_idx], y_train=y_bin[train_idx], y_train_mul=y_mul[train_idx],
         X_val=X_seq[val_idx], y_val=y_bin[val_idx], y_val_mul=y_mul[val_idx],
-        X_test=X_seq[test_idx], y_test=y_bin[test_idx], y_test_mul=y_mul[test_idx]
+        X_test=X_seq[test_idx], y_test=y_bin[test_idx], y_test_mul=y_mul[test_idx],
+        sample_ids_train=sample_ids[train_idx], sample_ids_val=sample_ids[val_idx], sample_ids_test=sample_ids[test_idx],
+        sample_ids_all=sample_ids
     )
     
     summary = {

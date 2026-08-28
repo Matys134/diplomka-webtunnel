@@ -38,7 +38,8 @@ def main():
     # 1. Base Rate Fallacy: FDR vs Alpha Curve
     alphas = np.logspace(-6, -1, 200) # from 10^-6 (core) to 10^-1 (edge)
     fpr_scenarios = [1e-2, 1e-3, 1e-4, 1e-5]
-    tpr = 0.99
+    # Dynamically extract TPR from evaluated models (defaults to 0.99 if not yet cached)
+    tpr = results.get("xgboost", {}).get("metrics", {}).get("recall", 0.99)
     
     plt.figure(figsize=(10, 6))
     for fpr in fpr_scenarios:

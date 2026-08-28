@@ -55,10 +55,10 @@ def main():
     total_start = time.time()
     timings = {}
 
-    total_pcaps = 3 * 5 * args.samples_per_profile
+    total_pcaps = 3 * 6 * args.samples_per_profile
     print("\n" + "#"*70)
     print("#  WEBTUNNEL RESILIENCE MASTER BENCHMARK PIPELINE")
-    print(f"#  Target: {args.samples_per_profile} samples/class/profile (3 profiles x 5 classes = {total_pcaps} PCAPs)")
+    print(f"#  Target: {args.samples_per_profile} samples/class/profile (3 profiles x 6 classes = {total_pcaps} PCAPs)")
     print(f"#  Start Time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"#  Logging all output to: {os.path.abspath(LOG_FILE)}")
     print("#"*70 + "\n")
