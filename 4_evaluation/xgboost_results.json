@@ -1,110 +1,38 @@
 {
-    "model": "XGBoost",
-    "train_time_sec": 0.22073650360107422,
-    "optimal_threshold": 0.5033649802207947,
-    "inference_latency_ms": 0.00036263465881347656,
-    "throughput_flows_sec": 2757596.3182117026,
+    "model_name": "XGBoost",
+    "training_time_sec": 0.2790100574493408,
+    "inference_latency_ms": 0.0005443096160888672,
+    "throughput_flows_sec": 1837189.6627244854,
+    "optimal_threshold": 0.8624258041381836,
     "metrics": {
         "accuracy": 1.0,
         "precision": 1.0,
         "recall": 1.0,
-        "f1": 1.0,
-        "pr_auc": 1.0,
-        "roc_auc": 1.0
+        "f1_score": 1.0,
+        "roc_auc": 0.9999999999999999,
+        "pr_auc": 1.0
     },
-    "confusion_matrix": [
-        [
-            259,
-            0
-        ],
-        [
-            0,
-            60
-        ]
-    ],
-    "low_fpr_precision": {
+    "low_fpr_calibration": {
         "fpr_0.01": {
-            "threshold": 0.4889807403087616,
+            "threshold": 0.031355518847703934,
             "precision": 0.9523809523809523,
             "recall": 1.0,
             "tp": 60,
             "fp": 3
         },
         "fpr_0.001": {
-            "threshold": 0.49250054359436035,
-            "precision": 0.9523809523809523,
+            "threshold": 0.2954697608947754,
+            "precision": 0.9836065573770492,
             "recall": 1.0,
             "tp": 60,
-            "fp": 3
+            "fp": 1
         },
         "fpr_0.0001": {
-            "threshold": 0.49250054359436035,
-            "precision": 0.9523809523809523,
+            "threshold": 0.32426217198371887,
+            "precision": 0.9836065573770492,
             "recall": 1.0,
             "tp": 60,
-            "fp": 3
+            "fp": 1
         }
-    },
-    "top_features": [
-        {
-            "name": "up_len_p90",
-            "importance": 0.24609868228435516
-        },
-        {
-            "name": "up_len_std",
-            "importance": 0.24566607177257538
-        },
-        {
-            "name": "up_len_p75",
-            "importance": 0.234090656042099
-        },
-        {
-            "name": "up_len_mean",
-            "importance": 0.18970806896686554
-        },
-        {
-            "name": "burst_dur_mean",
-            "importance": 0.02730381302535534
-        },
-        {
-            "name": "up_len_p10",
-            "importance": 0.007998943328857422
-        },
-        {
-            "name": "burst_len_std_pkts",
-            "importance": 0.006204701028764248
-        },
-        {
-            "name": "ratio_up_bytes",
-            "importance": 0.0050647263415157795
-        },
-        {
-            "name": "total_bytes",
-            "importance": 0.005034325178712606
-        },
-        {
-            "name": "burst_len_mean_pkts",
-            "importance": 0.00497232424095273
-        },
-        {
-            "name": "len_max",
-            "importance": 0.0042922464199364185
-        },
-        {
-            "name": "len_std",
-            "importance": 0.004178969189524651
-        },
-        {
-            "name": "len_skew",
-            "importance": 0.0037600593641400337
-        },
-        {
-            "name": "iat_p10",
-            "importance": 0.0028921132907271385
-        },
-        {
-            "name": "down_len_max",
-            "importance": 0.0025224152486771345
-        }
-    ]
+    }
 }

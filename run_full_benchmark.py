@@ -102,7 +102,10 @@ def main():
     timings["cross_profile"] = run_step("Cross-Profile Domain Generalization Evaluation", f"{VENV_PYTHON} 4_evaluation/evaluate_cross_profile.py")
     timings["defense_sim"] = run_step("Advanced Defenses & Before-vs-After Simulation", f"{VENV_PYTHON} 4_evaluation/evaluate_before_after_defenses.py")
 
-    # 8. Base Rate Fallacy & Evaluation
+    # 8. Base Rate Fallacy, Cascaded Pipeline, DET Curve & Class Breakdown
+    timings["cascaded_pipeline"] = run_step("2-Tier Cascaded Classification Pipeline Evaluation", f"{VENV_PYTHON} 4_evaluation/evaluate_cascaded_pipeline.py")
+    timings["det_curve"] = run_step("Logarithmic DET Curve Generation", f"{VENV_PYTHON} 4_evaluation/evaluate_det_curve.py")
+    timings["confusion_breakdown"] = run_step("Multi-Class Confusion Matrix & Class Breakdown", f"{VENV_PYTHON} 4_evaluation/evaluate_confusion_matrix.py")
     timings["evaluation"] = run_step("Base Rate Fallacy & Host-Based Aggregation Evaluation", f"{VENV_PYTHON} 4_evaluation/evaluate_base_rate_fallacy.py")
 
     # 9. LaTeX Table Export

@@ -61,9 +61,8 @@ def main():
     X_test, y_test = data["X_test"], data["y_test"]
     feature_names = list(data["feature_names"])
     
-    # Calculate class imbalance ratio
-    pos_count = np.sum(y_train == 1)
-    neg_count = np.sum(y_train == 0)
+    pos_count = int(np.sum(y_train == 1))
+    neg_count = int(np.sum(y_train == 0))
     scale_pos_weight = float(neg_count / max(pos_count, 1))
     
     print(f"=== Training XGBoost Baseline Model ===")
@@ -73,31 +72,29 @@ def main():
     clf = xgb.XGBClassifier(
         n_estimators=300,
         max_depth=6,
-        learning_rate=0.03,
+        learning_rate=0.05,
         subsample=0.8,
         colsample_bytree=0.8,
         scale_pos_weight=scale_pos_weight,
-        eval_metric=["logloss", "aucpr"],
+        eval_metric="logloss",
         early_stopping_rounds=30,
         random_state=42
     )
     
-    # Benchmark training time
     start_train_t = time.time()
     clf.fit(
         X_train, y_train,
-        eval_set=[(X_train, y_train), (X_val, y_val)],
+        eval_set=[(X_val, y_val)],
         verbose=False
     )
     train_time = time.time() - start_train_t
     print(f"[OK] Trained in {train_time:.3f}s (Best iteration: {clf.best_iteration})")
     
-    # Calibrate optimal threshold on validation set
     val_probs = clf.predict_proba(X_val)[:, 1]
     opt_threshold = find_optimal_threshold(y_val, val_probs)
     print(f"Calibrated Optimal Threshold (from Val set): {opt_threshold:.4f}")
     
-    # Benchmark inference latency per flow
+    # Benchmark inference latency
     n_benchmark = 1000
     X_bench = np.tile(X_test, (int(n_benchmark / max(len(X_test), 1)) + 1, 1))[:n_benchmark]
     
@@ -107,7 +104,6 @@ def main():
     latency_ms_per_flow = (inf_time_total / n_benchmark) * 1000.0
     throughput_flows_sec = n_benchmark / inf_time_total
     
-    # Test set evaluation
     test_probs = clf.predict_proba(X_test)[:, 1]
     test_preds = (test_probs >= opt_threshold).astype(int)
     
@@ -118,56 +114,47 @@ def main():
     roc_auc = roc_auc_score(y_test, test_probs) if len(np.unique(y_test)) > 1 else 0.0
     pr_auc = average_precision_score(y_test, test_probs) if len(np.unique(y_test)) > 1 else 0.0
     
-    cm = confusion_matrix(y_test, test_preds).tolist()
+    print("\n--- XGBoost Test Evaluation ---")
+    print(f"Accuracy  : {acc*100:.2f}%")
+    print(f"Precision : {prec*100:.2f}%")
+    print(f"Recall    : {rec*100:.2f}%")
+    print(f"F1-Score  : {f1*100:.2f}%")
+    print(f"ROC-AUC   : {roc_auc:.4f}")
+    print(f"PR-AUC    : {pr_auc:.4f}")
+    print(f"Latency   : {latency_ms_per_flow:.5f} ms/flow ({throughput_flows_sec:,.0f} flows/sec)")
+    
     low_fpr_results = calculate_precision_at_fixed_fpr(y_test, test_probs)
     
-    # Feature importances
-    importances = clf.feature_importances_
-    feat_imp = sorted(zip(feature_names, importances), key=lambda x: x[1], reverse=True)
+    model_save_path = os.path.join(MODEL_DIR, "xgboost_baseline.json")
+    clf.save_model(model_save_path)
+    print(f"[OK] Model saved to {model_save_path}")
     
-    print("\n--- Test Set Evaluation (Calibrated Threshold) ---")
-    print(f"Accuracy:  {acc*100:.2f}%")
-    print(f"Precision: {prec*100:.2f}%")
-    print(f"Recall:    {rec*100:.2f}%")
-    print(f"F1-Score:  {f1*100:.2f}%")
-    print(f"PR-AUC:    {pr_auc:.4f}")
-    print(f"ROC-AUC:   {roc_auc:.4f}")
-    print(f"Inference Latency:    {latency_ms_per_flow:.4f} ms/flow")
-    print(f"Inference Throughput: {throughput_flows_sec:.1f} flows/sec")
-    
-    print("\n--- Top 10 Most Discriminative Features ---")
-    for fname, imp in feat_imp[:10]:
-        print(f"  - {fname:<25}: {imp:.4f}")
-        
     results = {
-        "model": "XGBoost",
-        "train_time_sec": float(train_time),
+        "model_name": "XGBoost",
+        "training_time_sec": train_time,
+        "inference_latency_ms": latency_ms_per_flow,
+        "throughput_flows_sec": throughput_flows_sec,
         "optimal_threshold": float(opt_threshold),
-        "inference_latency_ms": float(latency_ms_per_flow),
-        "throughput_flows_sec": float(throughput_flows_sec),
         "metrics": {
             "accuracy": float(acc),
             "precision": float(prec),
             "recall": float(rec),
-            "f1": float(f1),
-            "pr_auc": float(pr_auc),
-            "roc_auc": float(roc_auc)
+            "f1_score": float(f1),
+            "roc_auc": float(roc_auc),
+            "pr_auc": float(pr_auc)
         },
-        "confusion_matrix": cm,
-        "low_fpr_precision": low_fpr_results,
-        "top_features": [{"name": f[0], "importance": float(f[1])} for f in feat_imp[:15]]
+        "low_fpr_calibration": low_fpr_results
     }
     
-    clf.save_model(os.path.join(MODEL_DIR, "xgboost_baseline.json"))
     with open(os.path.join(EVAL_DIR, "xgboost_results.json"), "w") as f:
         json.dump(results, f, indent=4)
         
     np.savez_compressed(
         os.path.join(EVAL_DIR, "xgboost_test_preds.npz"),
         y_test=y_test,
-        y_probs=test_probs
+        test_probs=test_probs,
+        test_preds=test_preds
     )
-    print(f"\n[OK] Model saved to {MODEL_DIR}/xgboost_baseline.json")
     print(f"[OK] Evaluation results saved to {EVAL_DIR}/xgboost_results.json")
 
 if __name__ == "__main__":
