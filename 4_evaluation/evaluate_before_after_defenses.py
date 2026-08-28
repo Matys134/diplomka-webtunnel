@@ -58,41 +58,30 @@ def simulate_lightweight_padding(X_seq, y_bin):
 
 def simulate_full_cell_coalescing_and_morphing(X_seq, y_bin, cover_class_seqs):
     """
-    Mode 2: Full Statistical Protocol Mimicry (Cell Coalescing & ECDF Morphing).
-    High security, breaks 514B cell peaks, overhead ~70%.
+    Mode 2: Full Statistical Protocol Mimicry (Cell Coalescing & Trace-Level Morphing).
+    Shapes packet sizes, directions, and timing according to legitimate cover sessions.
     """
     X_def = X_seq.copy()
-    cover_lens = np.abs(cover_class_seqs[:, :, 0]).flatten()
-    cover_lens = cover_lens[cover_lens > 0.02]
-    cover_iats = cover_class_seqs[:, :, 1].flatten()
-    cover_iats = cover_iats[cover_iats > 0.0]
+    num_covers = len(cover_class_seqs)
+    np.random.seed(42)
     
     total_orig = 0
     total_pad = 0
     
     for i in range(len(y_bin)):
         if y_bin[i] == 1:
-            for s in range(X_def.shape[1]):
-                norm_len = X_def[i, s, 0]
-                norm_iat = X_def[i, s, 1]
-                if abs(norm_len) < 1e-4:
-                    continue
-                orig_bytes = abs(norm_len) * 1500.0
-                total_orig += orig_bytes
-                
-                target_norm_len = np.random.choice(cover_lens)
-                morphed_bytes = target_norm_len * 1500.0
-                
-                pad = max(0.0, morphed_bytes - orig_bytes) if morphed_bytes > orig_bytes else 0.0
-                total_pad += pad
-                final_bytes = min(1480.0, max(orig_bytes, morphed_bytes))
-                
-                target_iat = np.random.choice(cover_iats)
-                
-                sign = 1.0 if norm_len > 0 else -1.0
-                X_def[i, s, 0] = sign * (final_bytes / 1500.0)
-                X_def[i, s, 1] = target_iat
-                
+            orig_bytes_flow = float(np.sum(np.abs(X_seq[i, :, 0])) * 1500.0)
+            total_orig += orig_bytes_flow
+            
+            target_idx = np.random.randint(0, num_covers)
+            target_seq = cover_class_seqs[target_idx].copy()
+            
+            morphed_bytes_flow = float(np.sum(np.abs(target_seq[:, 0])) * 1500.0)
+            pad = max(0.0, morphed_bytes_flow - orig_bytes_flow) + (0.12 * orig_bytes_flow)
+            total_pad += pad
+            
+            X_def[i] = target_seq
+            
     overhead_pct = (total_pad / max(total_orig, 1.0)) * 100.0
     return X_def, overhead_pct
 
@@ -323,14 +312,14 @@ r"""\hline
     full_lens = np.abs(X_def_full[y_test == 1, :, 0]).flatten() * 1500.0
     full_lens = full_lens[full_lens > 10.0]
     
-    sns.kdeplot(orig_lens, label="1. Bez obrany: Ostré špičky 624B a 1138B", color="#d62728", bw_adjust=0.4, linewidth=2.5)
+    sns.kdeplot(orig_lens, label="1. Bez obrany: Ostrá špička ~560B (1x Tor Cell + H2/TLS)", color="#d62728", bw_adjust=0.4, linewidth=2.5)
     sns.kdeplot(light_lens, label="2. Adaptivní padding 1-128B: Částečný rozptyl", color="#ff7f0e", bw_adjust=0.4, linewidth=2.0)
     sns.kdeplot(full_lens, label="3. Cell Coalescing & Mimicry: Kvantizace vyhlazena", color="#2ca02c", bw_adjust=0.4, linewidth=2.5)
     
-    plt.axvline(x=624, color="gray", linestyle="--", alpha=0.6, label="1x Tor Cell (~624B)")
-    plt.axvline(x=1138, color="purple", linestyle="--", alpha=0.6, label="2x Tor Cell (~1138B)")
-    plt.title("Spektrální distribuce délek paketů WebTunnelu: Srovnání úrovní obran", fontsize=13, fontweight="bold")
-    plt.xlabel("Délka paketu (Bytes)", fontsize=12)
+    plt.axvline(x=560, color="gray", linestyle="--", alpha=0.6, label="1x Tor Cell L7 (~560B)")
+    plt.axvline(x=1074, color="purple", linestyle="--", alpha=0.6, label="2x Tor Cell L7 (~1074B)")
+    plt.title("Spektrální distribuce délek aplikačního L7 payloadu: Srovnání úrovní obran", fontsize=13, fontweight="bold")
+    plt.xlabel("Délka L7 payloadu (Bytes)", fontsize=12)
     plt.ylabel("Hustota pravděpodobnosti", fontsize=12)
     plt.xlim(0, 1550)
     plt.legend(fontsize=10)

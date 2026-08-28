@@ -115,23 +115,36 @@ def generate_confusion_breakdown():
         f.write(tex)
     print(f"[OK] Exported {TABLE_DIR}/table_class_breakdown.tex")
     
-    # 5. Plot Heatmap Breakdown
-    plt.figure(figsize=(10, 6))
-    matrix_data = np.zeros((len(CLASS_NAMES), 2))
+    # 5. Plot Side-by-Side Heatmap Breakdown (XGBoost vs 1D-CNN)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    
+    matrix_xgb = np.zeros((len(CLASS_NAMES), 2))
+    matrix_cnn = np.zeros((len(CLASS_NAMES), 2))
     
     for cls_idx in range(len(CLASS_NAMES)):
         mask = (y_test_mul == cls_idx)
         if np.sum(mask) == 0:
             continue
-        p_cnn_sub = preds_cnn[mask]
-        matrix_data[cls_idx, 0] = np.mean(p_cnn_sub == 0) * 100.0 # Classified Benign
-        matrix_data[cls_idx, 1] = np.mean(p_cnn_sub == 1) * 100.0 # Classified WebTunnel
+        p_xgb_sub = preds_xgb[mask]
+        matrix_xgb[cls_idx, 0] = np.mean(p_xgb_sub == 0) * 100.0
+        matrix_xgb[cls_idx, 1] = np.mean(p_xgb_sub == 1) * 100.0
         
-    sns.heatmap(matrix_data, annot=True, fmt=".1f", cmap="Blues", cbar=True,
+        p_cnn_sub = preds_cnn[mask]
+        matrix_cnn[cls_idx, 0] = np.mean(p_cnn_sub == 0) * 100.0
+        matrix_cnn[cls_idx, 1] = np.mean(p_cnn_sub == 1) * 100.0
+        
+    sns.heatmap(matrix_xgb, annot=True, fmt=".1f", cmap="Blues", cbar=False, ax=ax1,
                 xticklabels=["Predikce: Legitimní (0)", "Predikce: WebTunnel (1)"],
-                yticklabels=CLASS_NAMES, annot_kws={"size": 11, "fontweight": "bold"})
-    plt.title("1D-CNN: Distribuce klasifikačních rozhodnutí napříč třídami (%)", fontsize=13, fontweight="bold", pad=12)
-    plt.ylabel("Skutečná třída (Ground Truth)", fontsize=11, fontweight="bold")
+                yticklabels=CLASS_NAMES, annot_kws={"size": 10, "fontweight": "bold"})
+    ax1.set_title("XGBoost Baseline: Klasifikace dle tříd (%)", fontsize=12, fontweight="bold", pad=10)
+    ax1.set_ylabel("Skutečná třída (Ground Truth)", fontsize=11, fontweight="bold")
+    
+    sns.heatmap(matrix_cnn, annot=True, fmt=".1f", cmap="Blues", cbar=True, ax=ax2,
+                xticklabels=["Predikce: Legitimní (0)", "Predikce: WebTunnel (1)"],
+                yticklabels=CLASS_NAMES, annot_kws={"size": 10, "fontweight": "bold"})
+    ax2.set_title("1D-CNN Deep Packet: Klasifikace dle tříd (%)", fontsize=12, fontweight="bold", pad=10)
+    ax2.set_ylabel("")
+    
     plt.tight_layout()
     plt.savefig(os.path.join(PLOT_DIR, "confusion_matrix_breakdown.png"), dpi=300)
     plt.close()

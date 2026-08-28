@@ -1,8 +1,8 @@
 {
     "l1_xgb": {
-        "single_latency_us": 68.4572396313364,
-        "batch_latency_ms": 0.0006234976958525345,
-        "throughput_flows_sec": 1603855.1652266462,
+        "single_latency_us": 66.99326267281106,
+        "batch_latency_ms": 0.0006757557603686635,
+        "throughput_flows_sec": 1479824.6032774365,
         "metrics": {
             "acc": 0.9953917050691244,
             "prec": 0.975,
@@ -13,9 +13,9 @@
         }
     },
     "l2_cnn": {
-        "single_latency_us": 154.2147603686636,
-        "batch_latency_ms": 0.005956986175115208,
-        "throughput_flows_sec": 167870.1226767007,
+        "single_latency_us": 159.4030921658986,
+        "batch_latency_ms": 0.006135557603686635,
+        "throughput_flows_sec": 162984.37152625478,
         "metrics": {
             "acc": 0.967741935483871,
             "prec": 1.0,
@@ -26,9 +26,9 @@
         }
     },
     "cascaded_pipeline": {
-        "single_latency_us": 70.58924092675572,
-        "batch_latency_ms": 0.0007058523434347725,
-        "throughput_flows_sec": 1416726.8966394097,
+        "single_latency_us": 69.19699205759306,
+        "batch_latency_ms": 0.0007605791373781562,
+        "throughput_flows_sec": 1314787.5754877627,
         "escalation_rate_pct": 1.3824884792626728,
         "metrics": {
             "acc": 0.9907834101382489,

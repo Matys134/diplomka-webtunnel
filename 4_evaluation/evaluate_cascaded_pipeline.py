@@ -182,12 +182,13 @@ Samostatná L2 inspekce (1D-CNN) & RTX 5070 Ti & """ + f"{m_cnn['acc']*100:.1f}\
     
     bars = ax1.bar(archs, tps, color=colors, alpha=0.85)
     ax1.set_yscale('log')
+    ax1.set_ylim(bottom=1e4, top=max(tps) * 5.0)
     ax1.set_ylabel("Line-Rate Propustnost (toků / s, log měřítko)", fontsize=11, fontweight="bold")
-    ax1.set_title("Srovnání klasifikační propustnosti", fontsize=12, fontweight="bold")
+    ax1.set_title("Srovnání klasifikační propustnosti", fontsize=12, fontweight="bold", pad=12)
     
     for bar in bars:
         height = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2., height * 1.15,
+        ax1.text(bar.get_x() + bar.get_width()/2., height * 1.25,
                  f"{height:,.0f} fl/s", ha='center', va='bottom', fontsize=9, fontweight='bold')
                  
     # Right: Escalation Pie Chart

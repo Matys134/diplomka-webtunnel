@@ -7,16 +7,16 @@
 \textbf{Model} & \textbf{Úroveň obranného mechanismu} & \textbf{Accuracy} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Režie pásma} \\
 \hline
 \multirow{3}{*}{1D-CNN (Deep Packet)} & Původní stav (bez obrany) & 96.8\% & 82.1\% & 90.1\% & 0.0\% \\
- & Adaptivní padding (1--128\,B) & 97.2\% & 84.6\% & 91.7\% & 5.1\% \\
- & Cell Coalescing \& ECDF Mimicry & 99.1\% & \textbf{94.9\%} & \textbf{97.4\%} & 52.5\% \\
+ & Adaptivní padding (1--128\,B) & 97.2\% & 84.6\% & 91.7\% & 5.0\% \\
+ & Cell Coalescing \& ECDF Mimicry & 82.0\% & \textbf{0.0\%} & \textbf{0.0\%} & 199.2\% \\
 \hline
 \multirow{3}{*}{Flow-Transformer} & Původní stav (bez obrany) & 96.3\% & 82.1\% & 88.9\% & 0.0\% \\
- & Adaptivní padding (1--128\,B) & 96.3\% & 82.1\% & 88.9\% & 5.1\% \\
- & Cell Coalescing \& ECDF Mimicry & 99.5\% & \textbf{100.0\%} & \textbf{98.7\%} & 52.5\% \\
+ & Adaptivní padding (1--128\,B) & 96.3\% & 82.1\% & 88.9\% & 5.0\% \\
+ & Cell Coalescing \& ECDF Mimicry & 82.0\% & \textbf{2.6\%} & \textbf{4.9\%} & 199.2\% \\
 \hline
 \multirow{3}{*}{XGBoost (Baseline)} & Původní stav (bez obrany) & 99.5\% & 100.0\% & 98.7\% & 0.0\% \\
- & Adaptivní padding (1--128\,B) & 97.7\% & 89.7\% & 93.3\% & 5.1\% \\
- & Cell Coalescing \& ECDF Mimicry & 99.5\% & \textbf{100.0\%} & \textbf{98.7\%} & 52.5\% \\
+ & Adaptivní padding (1--128\,B) & 97.7\% & 89.7\% & 93.3\% & 5.0\% \\
+ & Cell Coalescing \& ECDF Mimicry & 81.6\% & \textbf{0.0\%} & \textbf{0.0\%} & 199.2\% \\
 \hline
 \end{tabular}
 \end{table}
