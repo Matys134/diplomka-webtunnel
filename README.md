@@ -20,29 +20,29 @@ This thesis investigates the **traffic analysis resilience** of WebTunnel agains
 ## 🔬 Experimental Results Summary
 
 ### 1. Model Comparison (5-Fold Stratified Cross-Validation)
-Evaluated across **1,800 PCAPs (1,595 verified TLS 1.3 network flows)** against 5 realistic *Hard Negative* classes (*Direct Web Browsing*, *WebSocket Tickers*, *Interactive WebSocket Chat*, *DASH Video Streaming*, and *HTTPS Web Assets*):
+Evaluated across **1,800 PCAPs (1,772 verified TLS 1.3 network flows)** with realistic bidirectional upload/POST payloads against 5 *Hard Negative* classes (*Direct Web Browsing*, *WebSocket Tickers*, *Interactive WebSocket Chat*, *DASH Video Streaming*, and *HTTPS Web Assets*):
 
 | Model | Architecture / Hardware | Accuracy ($\mu \pm \sigma$) | PR-AUC ($\mu \pm \sigma$) | ROC-AUC ($\mu \pm \sigma$) | Latency / Flow | Throughput |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.7 \pm 0.2\%$** | **$1.000 \pm 0.001$** | **$1.000 \pm 0.000$** | **0.0004 ms** | **~2,750,000 flows/s** |
-| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$99.6 \pm 0.3\%$** | **$0.988 \pm 0.025$** | **$0.999 \pm 0.002$** | **0.1203 ms** | **~8,310 flows/s** |
-| **Flow-Transformer** | Multi-Head Self-Attention (CUDA) | **$99.2 \pm 0.8\%$** | **$0.998 \pm 0.003$** | **$1.000 \pm 0.001$** | **0.1761 ms** | **~5,680 flows/s** |
+| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.7 \pm 0.3\%$** | **$0.999 \pm 0.002$** | **$1.000 \pm 0.001$** | **0.0005 ms** | **~2,000,000 flows/s** |
+| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$99.2 \pm 0.5\%$** | **$0.994 \pm 0.009$** | **$0.997 \pm 0.006$** | **0.1187 ms** | **~8,420 flows/s** |
+| **Flow-Transformer** | Multi-Head Self-Attention (CUDA) | **$98.9 \pm 0.6\%$** | **$0.988 \pm 0.009$** | **$0.996 \pm 0.004$** | **0.1728 ms** | **~5,780 flows/s** |
 
 ### 2. 2-Tier Cascaded Classification Architecture (L1 CPU $\rightarrow$ L2 GPU)
 To achieve line-rate inspection on ISP backbone networks, we design and benchmark a hybrid pipeline:
-* **L1 CPU Filter (XGBoost):** Resolves **99.1%** of traffic with sub-microsecond latency.
-* **L2 GPU Inspection (1D-CNN):** Inspects only ambiguous flows ($0.05 \le p \le 0.95$, representing **0.9%** of traffic).
-* **Overall Hybrid Throughput:** **2,417,606 flows/second** with **99.69% accuracy**.
+* **L1 CPU Filter (XGBoost):** Resolves **99.2%** of traffic with sub-microsecond latency.
+* **L2 GPU Inspection (1D-CNN):** Inspects only ambiguous flows ($0.05 \le p \le 0.95$, representing **0.8%** of traffic).
+* **Overall Hybrid Throughput:** **1,928,717 flows/second** with **98.87% accuracy** and **0.9992 PR-AUC**.
 
 ### 3. Pre- vs. Post-Handshake Analysis
-By stripping all initial TLS handshakes (`post_handshake_only=True`), we empirically prove that model detection is **NOT dependent on TLS metadata**, but stems purely from the **514-byte Tor cell payload quantization**:
-* **Full Flow:** XGBoost Acc: **99.4%**, 1D-CNN Acc: **99.7%**
-* **Post-Handshake Only:** XGBoost Acc: **98.7%**, 1D-CNN Acc: **98.4%**
+By stripping all initial TLS handshakes (`post_handshake_only=True` with a 15-packet cutoff), we empirically prove that model detection is **NOT dependent on TLS metadata**, but stems purely from the **514-byte Tor cell payload quantization**:
+* **Full Flow:** XGBoost Acc: **98.9%**, 1D-CNN Acc: **99.4%**
+* **Post-Handshake Only:** XGBoost Acc: **99.2%**, 1D-CNN Acc: **98.6%**
 
 ### 4. Countermeasure Evaluation (Before vs. After Defense)
 We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
-1. **Adaptive Intra-frame Padding (1–128 B):** Bandwidth overhead **9.7%**; reduces 1D-CNN detection recall to **85.0%**.
-2. **Dynamic Cell Coalescing & Cover Mimicry:** Bandwidth overhead **70.8%**; completely erases the 624 B and 1138 B spectral quantization peaks.
+1. **Adaptive Intra-frame Padding (1–128 B):** Bandwidth overhead **8.1%**; introduces non-deterministic packet length jitter.
+2. **Dynamic Cell Coalescing & Cover Mimicry:** Bandwidth overhead **56.7%**; reduces Transformer recall down to **80.0%** and completely erases 624 B and 1138 B spectral quantization peaks.
 
 ---
 

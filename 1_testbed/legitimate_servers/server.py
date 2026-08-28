@@ -3,7 +3,7 @@ import asyncio
 import json
 import random
 import time
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, Response
 import uvicorn
 
@@ -66,6 +66,17 @@ async def web_asset(asset_id: str):
 @app.get("/api/v1/feed")
 async def rest_feed():
     return {"status": "active", "items": [{"id": i, "content": f"Sample item {i}"} for i in range(20)]}
+
+# 5. Realistic HTTP POST Upload / Telemetry endpoints
+@app.post("/api/v1/telemetry")
+async def post_telemetry(request: Request):
+    body = await request.body()
+    return {"status": "received", "bytes": len(body), "timestamp": time.time()}
+
+@app.post("/api/v1/upload")
+async def post_upload(request: Request):
+    body = await request.body()
+    return {"status": "ok", "uploaded_size": len(body)}
 
 @app.get("/")
 async def root():

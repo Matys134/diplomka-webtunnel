@@ -1,17 +1,17 @@
 {
-    "total_samples": 1595,
+    "total_samples": 1771,
     "classes": {
         "webtunnel": 300,
-        "direct_web_browsing": 294,
-        "websocket_ticker": 279,
-        "websocket_chat": 222,
-        "video_streaming": 236,
-        "web_assets": 264
+        "direct_web_browsing": 300,
+        "websocket_ticker": 292,
+        "websocket_chat": 296,
+        "video_streaming": 286,
+        "web_assets": 297
     },
     "splits": {
-        "train": 1084,
-        "val": 192,
-        "test": 319
+        "train": 1203,
+        "val": 213,
+        "test": 355
     },
     "tabular_feature_count": 48,
     "sequence_shape": [

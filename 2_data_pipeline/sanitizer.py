@@ -74,9 +74,9 @@ def extract_raw_packets_from_pcap(pcap_path: str, post_handshake_only: bool = Fa
             signed_len = direction * pkt_len
             packets.append((rel_ts, signed_len))
             
-    # Post-handshake isolation (skip first 4-5 packets to eliminate TLS ClientHello / uTLS artifacts)
-    if post_handshake_only and len(packets) > 5:
-        packets = packets[5:]
+    # Post-handshake isolation (skip first 15 packets to eliminate TCP 3-way handshake & TLS 1.3 Key Exchange)
+    if post_handshake_only and len(packets) > 15:
+        packets = packets[15:]
         if packets:
             base_t = packets[0][0]
             packets = [(t - base_t, l) for t, l in packets]
