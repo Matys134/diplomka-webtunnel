@@ -24,15 +24,15 @@ Evaluated across **1,800 PCAPs (1,582 verified TLS 1.3 network flows)** under na
 
 | Model | Architecture / Hardware | Accuracy ($\mu \pm \sigma$) | PR-AUC ($\mu \pm \sigma$) | ROC-AUC ($\mu \pm \sigma$) | Latency / Flow | Throughput |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.6 \pm 0.2\%$** | **$0.999 \pm 0.002$** | **$1.000 \pm 0.000$** | **0.0085 ms** | **~118,000 flows/s** |
-| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$98.7 \pm 0.5\%$** | **$0.985 \pm 0.026$** | **$0.999 \pm 0.001$** | **0.1229 ms** | **~8,135 flows/s** |
-| **Flow-Transformer** | Multi-Head Self-Attention (CUDA) | **$98.4 \pm 0.5\%$** | **$0.984 \pm 0.012$** | **$0.997 \pm 0.001$** | **0.1758 ms** | **~5,690 flows/s** |
+| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.5 \pm 0.2\%$** | **$0.999 \pm 0.001$** | **$1.000 \pm 0.000$** | **0.0004 ms** | **2,837,824 flows/s** |
+| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$98.8 \pm 0.6\%$** | **$0.992 \pm 0.012$** | **$0.999 \pm 0.002$** | **0.1242 ms** | **8,051 flows/s** |
+| **Flow-Transformer** | Multi-Head Self-Attention (CUDA) | **$98.0 \pm 0.4\%$** | **$0.966 \pm 0.028$** | **$0.986 \pm 0.014$** | **0.1805 ms** | **5,541 flows/s** |
 
 ### 2. 2-Tier Cascaded Classification Architecture (L1 CPU $\rightarrow$ L2 GPU)
 To achieve line-rate inspection on ISP backbone networks, we design and benchmark a hybrid pipeline:
-* **L1 CPU Filter (XGBoost):** Resolves **98.6%** of traffic with $72.3\,\mu\text{s}$ single-flow latency ($1,535,750\text{ flows/s}$ batch).
+* **L1 CPU Filter (XGBoost):** Resolves **98.6%** of traffic with $67.0\,\mu\text{s}$ single-flow latency ($1,479,825\text{ flows/s}$ batch).
 * **L2 GPU Inspection (1D-CNN):** Inspects only ambiguous flows ($0.05 \le p \le 0.95$, representing **1.4%** of traffic).
-* **Overall Hybrid Performance:** **$74.3\,\mu\text{s}$ single-flow latency**, **1,455,880 flows/second batch throughput** with **99.54% accuracy** and **0.9994 PR-AUC**.
+* **Overall Hybrid Performance:** **$69.2\,\mu\text{s}$ single-flow latency**, **1,314,788 flows/second batch throughput** with **99.08% accuracy** and **0.9994 PR-AUC**.
 
 ### 3. Pre- vs. Post-Handshake Analysis (Dynamic TLS 1.3 0x17 Cutoff)
 By dynamically stripping all initial TLS handshakes at the first Application Data record (`ContentType == 0x17`), we empirically prove that model detection is **NOT dependent on TLS metadata**, but stems purely from the **514-byte Tor cell payload quantization**:
@@ -42,7 +42,7 @@ By dynamically stripping all initial TLS handshakes at the first Application Dat
 ### 4. Countermeasure Evaluation (Before vs. After Defense)
 We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
 1. **Adaptive Intra-frame Padding (1–128 B):** Bandwidth overhead **5.0%**; reduces XGBoost detection recall to **89.7%**.
-2. **Dynamic Cell Coalescing & Cover Mimicry:** Bandwidth overhead **53.5%**; completely erases 624 B and 1138 B spectral quantization peaks.
+2. **Dynamic Cell Coalescing & Cover Mimicry:** Bandwidth overhead **199.2%**; WebTunnel detection recall drops to **0.0% (1D-CNN / XGBoost)** and **2.6% (Flow-Transformer)**, completely flattening spectral peaks.
 
 ---
 
@@ -66,7 +66,7 @@ We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
 │   ├── train_xgboost.py           # XGBoost classifier + dynamic scale_pos_weight
 │   ├── train_1d_cnn.py            # PyTorch 1D-CNN (CUDA) with Focal Loss
 │   ├── train_transformer.py       # PyTorch Flow-Transformer (CUDA)
-│   ├── cross_validate.py          # 5-Fold Stratified Cross-Validation (All 3 models)
+│   ├── cross_validate.py          # 5-Fold Stratified Group CV with Early Stopping
 │   └── explain_models.py          # XAI: SHAP Beeswarm Summary & Gradient Saliency
 ├── 4_evaluation/                  # Experimental evaluation & figures
 │   ├── evaluate_cascaded_pipeline.py    # 2-Tier L1 CPU -> L2 GPU cascaded benchmark
@@ -78,6 +78,7 @@ We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
 │   ├── evaluate_base_rate_fallacy.py    # Base rate fallacy & Bayes aggregation
 │   ├── export_latex_tables.py           # Generates all .tex tables for the thesis
 │   └── plots/                           # High-resolution (300 DPI) publication figures
+├── requirements.txt               # Pinned Python package dependencies
 └── run_full_benchmark.py          # Master orchestrator executing entire pipeline
 ```
 
@@ -97,13 +98,10 @@ We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
 git clone git@github.com:Matys134/diplomka-webtunnel.git
 cd diplomka-webtunnel
 
-# Create virtual environment
+# Create virtual environment and install dependencies
 python3 -m venv venv
 source venv/bin/activate
-
-# Install dependencies
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-pip install xgboost scikit-learn dpkt matplotlib seaborn numpy shap pandas
+pip install -r requirements.txt
 ```
 
 ### 3. Run the Full Autonomous Benchmark
