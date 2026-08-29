@@ -1,5 +1,6 @@
 {
     "total_samples": 1582,
+    "split_strategy": "Session-Stratified-Anti-Leakage (1-70 Train, 71-85 Val, 86-100 Test)",
     "classes": {
         "webtunnel": 273,
         "direct_web_browsing": 300,

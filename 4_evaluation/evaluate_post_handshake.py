@@ -34,7 +34,7 @@ CLASS_MAPPING = {
 
 def load_dataset_variants(post_handshake: bool = False):
     pcap_files = sorted(glob.glob(os.path.join(RAW_PCAP_DIR, "*.pcap")))
-    X_tab, X_seq, y_bin = [], [], []
+    X_tab, X_seq, y_bin, sample_ids = [], [], [], []
     
     for p in pcap_files:
         base = os.path.basename(p)
@@ -50,19 +50,26 @@ def load_dataset_variants(post_handshake: bool = False):
         if len(pkts) < 3:
             continue
             
+        try:
+            sid = int(os.path.splitext(base)[0].split("_")[-1])
+        except Exception:
+            sid = -1
+            
         X_tab.append(compute_flow_statistics(pkts))
         X_seq.append(build_sequence_tensor(pkts, max_seq_len=200))
         y_bin.append(label)
+        sample_ids.append(sid)
         
     X_tab = np.array(X_tab, dtype=np.float32)
     X_seq = np.array(X_seq, dtype=np.float32)
     y_bin = np.array(y_bin, dtype=np.int64)
-    return X_tab, X_seq, y_bin
+    sample_ids = np.array(sample_ids, dtype=np.int64)
+    return X_tab, X_seq, y_bin, sample_ids
 
-def train_and_eval_models(X_tab, X_seq, y_bin):
-    # Split
-    indices = np.arange(len(y_bin))
-    tr_idx, te_idx = train_test_split(indices, test_size=0.2, random_state=42, stratify=y_bin)
+def train_and_eval_models(X_tab, X_seq, y_bin, sample_ids):
+    # Strict Session-Stratified Anti-Leakage Split (1-70 Train, 86-100 Test)
+    tr_idx = np.where(sample_ids <= 70)[0]
+    te_idx = np.where(sample_ids > 85)[0]
     
     # 1. XGBoost
     scale_pos_weight = float(np.sum(y_bin[tr_idx] == 0) / max(np.sum(y_bin[tr_idx] == 1), 1))
@@ -135,14 +142,14 @@ def main():
     os.makedirs(TABLE_DIR, exist_ok=True)
     
     print("=== Loading Full-Flow (Standard) Dataset ===")
-    X_tab_full, X_seq_full, y_full = load_dataset_variants(post_handshake=False)
+    X_tab_full, X_seq_full, y_full, sids_full = load_dataset_variants(post_handshake=False)
     print(f"Full dataset: {len(y_full)} samples.")
-    xgb_full, cnn_full = train_and_eval_models(X_tab_full, X_seq_full, y_full)
+    xgb_full, cnn_full = train_and_eval_models(X_tab_full, X_seq_full, y_full, sids_full)
     
     print("\n=== Loading Post-Handshake-Only Dataset (Handshake Stripped) ===")
-    X_tab_post, X_seq_post, y_post = load_dataset_variants(post_handshake=True)
+    X_tab_post, X_seq_post, y_post, sids_post = load_dataset_variants(post_handshake=True)
     print(f"Post-handshake dataset: {len(y_post)} samples.")
-    xgb_post, cnn_post = train_and_eval_models(X_tab_post, X_seq_post, y_post)
+    xgb_post, cnn_post = train_and_eval_models(X_tab_post, X_seq_post, y_post, sids_post)
     
     print("\n--- Handshake Comparison Summary ---")
     print(f"Full Flow       - XGBoost Acc: {xgb_full['acc']*100:.2f}%, PR-AUC: {xgb_full['pr_auc']:.4f} | 1D-CNN Acc: {cnn_full['acc']*100:.2f}%, PR-AUC: {cnn_full['pr_auc']:.4f}")

@@ -105,18 +105,17 @@ def main():
         sample_ids.append(sid)
     sample_ids = np.array(sample_ids)
     
-    # If standard 1..100 numbering exists, split by session blocks (1-70 Train, 71-85 Val, 86-100 Test)
-    if np.all(sample_ids > 0):
-        train_idx = np.where(sample_ids <= 70)[0]
-        val_idx = np.where((sample_ids > 70) & (sample_ids <= 85))[0]
-        test_idx = np.where(sample_ids > 85)[0]
-    else:
-        # Fallback to stratified group split
-        indices = np.arange(len(valid_samples))
-        train_idx, test_idx = train_test_split(indices, test_size=args.test_size, random_state=42, stratify=y_mul)
-        train_idx, val_idx = train_test_split(train_idx, test_size=args.val_size, random_state=42, stratify=y_mul[train_idx])
+    # Assert strict session IDs for anti-leakage splitting
+    if not np.all(sample_ids > 0):
+        invalid_count = int(np.sum(sample_ids <= 0))
+        raise ValueError(f"CRITICAL ERROR: {invalid_count} PCAPs have unparseable session IDs! Cannot guarantee anti-leakage session split.")
         
-    print(f"Session-Stratified Split: Train={len(train_idx)}, Val={len(val_idx)}, Test={len(test_idx)}")
+    train_idx = np.where(sample_ids <= 70)[0]
+    val_idx = np.where((sample_ids > 70) & (sample_ids <= 85))[0]
+    test_idx = np.where(sample_ids > 85)[0]
+    split_strategy = "Session-Stratified-Anti-Leakage (1-70 Train, 71-85 Val, 86-100 Test)"
+        
+    print(f"[{split_strategy}] Train={len(train_idx)}, Val={len(val_idx)}, Test={len(test_idx)}")
     
     np.savez_compressed(
         os.path.join(PROCESSED_DIR, "tabular_dataset.npz"),
@@ -139,6 +138,7 @@ def main():
     
     summary = {
         "total_samples": len(valid_samples),
+        "split_strategy": split_strategy,
         "classes": {k: int(np.sum(np.array(class_names) == k)) for k in MULTI_CLASS_MAPPING.keys()},
         "splits": {
             "train": len(train_idx),

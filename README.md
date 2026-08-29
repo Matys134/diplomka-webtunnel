@@ -35,14 +35,14 @@ To achieve line-rate inspection on ISP backbone networks, we design and benchmar
 * **Overall Hybrid Performance:** **$69.2\,\mu\text{s}$ single-flow latency**, **1,314,788 flows/second batch throughput** with **99.08% accuracy** and **0.9994 PR-AUC**.
 
 ### 3. Pre- vs. Post-Handshake Analysis (Dynamic TLS 1.3 0x17 Cutoff)
-By dynamically stripping all initial TLS handshakes at the first Application Data record (`ContentType == 0x17`), we empirically prove that model detection is **NOT dependent on TLS metadata**, but stems purely from the **514-byte Tor cell payload quantization**:
-* **Full Flow:** XGBoost Acc: **99.05%**, 1D-CNN Acc: **99.37%**
-* **Post-Handshake Only:** XGBoost Acc: **99.37%**, 1D-CNN Acc: **99.37%**
+By dynamically stripping all initial TLS handshakes at the first Application Data record (`ContentType == 0x17`), we empirically prove that model detection is **NOT dependent on TLS metadata**, but stems purely from the **Tor cell payload quantization and stream dynamics**:
+* **Full Flow:** XGBoost Acc: **99.54%** (PR-AUC: **0.9994**), 1D-CNN Acc: **96.77%** (PR-AUC: **0.9905**)
+* **Post-Handshake Only:** XGBoost Acc: **99.54%** (PR-AUC: **1.0000**), 1D-CNN Acc: **97.22%** (PR-AUC: **0.9910**)
 
 ### 4. Countermeasure Evaluation (Before vs. After Defense)
 We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
-1. **Adaptive Intra-frame Padding (1–128 B):** Bandwidth overhead **5.0%**; reduces XGBoost detection recall to **89.7%**.
-2. **Dynamic Cell Coalescing & Cover Mimicry:** Bandwidth overhead **199.2%**; WebTunnel detection recall drops to **0.0% (1D-CNN / XGBoost)** and **2.6% (Flow-Transformer)**, completely flattening spectral peaks.
+1. **Adaptive Intra-frame Padding (1–128 B):** Bandwidth overhead **5.2%**; reduces XGBoost detection recall to **89.7%**.
+2. **Cell Coalescing & Cover Traffic Shaping:** Bandwidth overhead **14.1%**; physically coalesces consecutive 514 B Tor cells into variable MTU-bounded frames (up to 1448 B) and injects dummy negotiation frames, flattening early handshake burst saliency.
 
 ---
 

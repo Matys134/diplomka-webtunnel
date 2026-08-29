@@ -56,33 +56,83 @@ def simulate_lightweight_padding(X_seq, y_bin):
     overhead_pct = (total_pad / max(total_orig, 1.0)) * 100.0
     return X_def, overhead_pct
 
-def simulate_full_cell_coalescing_and_morphing(X_seq, y_bin, cover_class_seqs):
+def simulate_full_cell_coalescing_and_morphing(X_seq, y_bin):
     """
-    Mode 2: Full Statistical Protocol Mimicry (Cell Coalescing & Trace-Level Morphing).
-    Shapes packet sizes, directions, and timing according to legitimate cover sessions.
+    Mode 2: Physically Authentic Cell Coalescing & Cover Traffic Shaping.
+    Physically coalesces consecutive Tor cells in the transport buffer into larger 
+    variable-size TLS/HTTP2 frames (up to MSS 1448 B), injects dummy handshake cover frames
+    to suppress circuit setup saliency (packets 1-15), and applies adaptive buffering delay.
     """
     X_def = X_seq.copy()
-    num_covers = len(cover_class_seqs)
     np.random.seed(42)
     
     total_orig = 0
-    total_pad = 0
+    total_morphed = 0
     
     for i in range(len(y_bin)):
         if y_bin[i] == 1:
-            orig_bytes_flow = float(np.sum(np.abs(X_seq[i, :, 0])) * 1500.0)
-            total_orig += orig_bytes_flow
+            orig_pkts = seq_to_packets(X_seq[i])
+            orig_bytes = sum(abs(p[1]) for p in orig_pkts)
+            total_orig += orig_bytes
             
-            target_idx = np.random.randint(0, num_covers)
-            target_seq = cover_class_seqs[target_idx].copy()
+            # Step 1: Coalesce adjacent packets of same direction
+            coalesced_pkts = []
+            buf_len = 0
+            buf_dir = 0
+            buf_t = 0.0
             
-            morphed_bytes_flow = float(np.sum(np.abs(target_seq[:, 0])) * 1500.0)
-            pad = max(0.0, morphed_bytes_flow - orig_bytes_flow) + (0.12 * orig_bytes_flow)
-            total_pad += pad
+            for t, signed_l in orig_pkts:
+                d = 1 if signed_l > 0 else -1
+                l = abs(signed_l)
+                
+                # Check if we can coalesce with previous packet
+                if d == buf_dir and (buf_len + l) <= 1448:
+                    buf_len += l
+                else:
+                    if buf_len > 0:
+                        # Apply randomized bucket padding to the coalesced buffer
+                        target_bucket = np.random.choice([600, 900, 1200, 1448])
+                        padded_len = min(1448, max(buf_len, target_bucket if np.random.rand() < 0.6 else buf_len))
+                        coalesced_pkts.append((buf_t, buf_dir * padded_len))
+                    buf_dir = d
+                    buf_len = l
+                    buf_t = t + np.random.uniform(0.005, 0.025) # Buffering jitter
+                    
+            if buf_len > 0:
+                target_bucket = np.random.choice([600, 900, 1200, 1448])
+                padded_len = min(1448, max(buf_len, target_bucket if np.random.rand() < 0.6 else buf_len))
+                coalesced_pkts.append((buf_t, buf_dir * padded_len))
+                
+            # Step 2: Inject handshake cover frames during initial negotiation burst
+            morphed_pkts = []
+            curr_t = 0.0
+            for idx, (t, signed_l) in enumerate(coalesced_pkts):
+                # Inject dummy cover frames in the first 15 packets
+                if idx < 10 and np.random.rand() < 0.4:
+                    dummy_dir = -1 if signed_l > 0 else 1
+                    dummy_len = int(np.random.choice([64, 128, 256, 512]))
+                    morphed_pkts.append((curr_t + np.random.uniform(0.002, 0.010), dummy_dir * dummy_len))
+                morphed_pkts.append((t, signed_l))
+                curr_t = t
+                
+            # Reconstruct sequence tensor for the flow
+            morphed_bytes = sum(abs(p[1]) for p in morphed_pkts)
+            total_morphed += morphed_bytes
             
-            X_def[i] = target_seq
+            # Convert morphed packets back to normalized tensor
+            new_tensor = np.zeros((X_seq.shape[1], 2), dtype=np.float32)
+            n_pkts = min(len(morphed_pkts), X_seq.shape[1])
+            prev_time = morphed_pkts[0][0] if n_pkts > 0 else 0.0
+            for s in range(n_pkts):
+                pt, pl = morphed_pkts[s]
+                dt = max(0.0, pt - prev_time)
+                prev_time = pt
+                new_tensor[s, 0] = np.clip(pl / 1500.0, -1.0, 1.0)
+                new_tensor[s, 1] = np.clip(np.log1p(dt) / 10.0, 0.0, 1.0)
+                
+            X_def[i] = new_tensor
             
-    overhead_pct = (total_pad / max(total_orig, 1.0)) * 100.0
+    overhead_pct = ((total_morphed - total_orig) / max(total_orig, 1.0)) * 100.0
     return X_def, overhead_pct
 
 def seq_to_packets(seq_item):
@@ -191,10 +241,9 @@ def main():
     m_tf_light = calc_metrics(y_test, p_tf_light)
     m_xgb_light = calc_metrics(y_test, p_xgb_light)
     
-    # 3. Evaluate Mode 2: Full Cell Coalescing & ECDF Morphing
-    print("=== 3. Evaluating Mode 2: Full Cell Coalescing & ECDF Morphing ===")
-    cover_seqs = X_test_seq[y_test == 0]
-    X_def_full, overhead_full = simulate_full_cell_coalescing_and_morphing(X_test_seq, y_test, cover_seqs)
+    # 3. Evaluate Mode 2: Full Cell Coalescing & Cover Traffic Shaping
+    print("=== 3. Evaluating Mode 2: Full Cell Coalescing & Cover Traffic Shaping ===")
+    X_def_full, overhead_full = simulate_full_cell_coalescing_and_morphing(X_test_seq, y_test)
     
     X_full_cnn_t = torch.from_numpy(np.transpose(X_def_full, (0, 2, 1))).to(device)
     with torch.no_grad():
@@ -239,15 +288,15 @@ def main():
 \hline
 \multirow{3}{*}{1D-CNN (Deep Packet)} & Původní stav (bez obrany) & """ + f"{m_cnn_bef['acc']*100:.1f}\\% & {m_cnn_bef['rec']*100:.1f}\\% & {m_cnn_bef['f1']*100:.1f}\\% & 0.0\\% \\\\\n" + \
 r""" & Adaptivní padding (1--128\,B) & """ + f"{m_cnn_light['acc']*100:.1f}\\% & {m_cnn_light['rec']*100:.1f}\\% & {m_cnn_light['f1']*100:.1f}\\% & {overhead_light:.1f}\\% \\\\\n" + \
-r""" & Cell Coalescing \& ECDF Mimicry & """ + f"{m_cnn_full['acc']*100:.1f}\\% & \\textbf{{{m_cnn_full['rec']*100:.1f}\\%}} & \\textbf{{{m_cnn_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
+r""" & Cell Coalescing \& Cover Shaping & """ + f"{m_cnn_full['acc']*100:.1f}\\% & \\textbf{{{m_cnn_full['rec']*100:.1f}\\%}} & \\textbf{{{m_cnn_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
 r"""\hline
 \multirow{3}{*}{Flow-Transformer} & Původní stav (bez obrany) & """ + f"{m_tf_bef['acc']*100:.1f}\\% & {m_tf_bef['rec']*100:.1f}\\% & {m_tf_bef['f1']*100:.1f}\\% & 0.0\\% \\\\\n" + \
 r""" & Adaptivní padding (1--128\,B) & """ + f"{m_tf_light['acc']*100:.1f}\\% & {m_tf_light['rec']*100:.1f}\\% & {m_tf_light['f1']*100:.1f}\\% & {overhead_light:.1f}\\% \\\\\n" + \
-r""" & Cell Coalescing \& ECDF Mimicry & """ + f"{m_tf_full['acc']*100:.1f}\\% & \\textbf{{{m_tf_full['rec']*100:.1f}\\%}} & \\textbf{{{m_tf_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
+r""" & Cell Coalescing \& Cover Shaping & """ + f"{m_tf_full['acc']*100:.1f}\\% & \\textbf{{{m_tf_full['rec']*100:.1f}\\%}} & \\textbf{{{m_tf_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
 r"""\hline
 \multirow{3}{*}{XGBoost (Baseline)} & Původní stav (bez obrany) & """ + f"{m_xgb_bef['acc']*100:.1f}\\% & {m_xgb_bef['rec']*100:.1f}\\% & {m_xgb_bef['f1']*100:.1f}\\% & 0.0\\% \\\\\n" + \
 r""" & Adaptivní padding (1--128\,B) & """ + f"{m_xgb_light['acc']*100:.1f}\\% & {m_xgb_light['rec']*100:.1f}\\% & {m_xgb_light['f1']*100:.1f}\\% & {overhead_light:.1f}\\% \\\\\n" + \
-r""" & Cell Coalescing \& ECDF Mimicry & """ + f"{m_xgb_full['acc']*100:.1f}\\% & \\textbf{{{m_xgb_full['rec']*100:.1f}\\%}} & \\textbf{{{m_xgb_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
+r""" & Cell Coalescing \& Cover Shaping & """ + f"{m_xgb_full['acc']*100:.1f}\\% & \\textbf{{{m_xgb_full['rec']*100:.1f}\\%}} & \\textbf{{{m_xgb_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
 r"""\hline
 \end{tabular}
 \end{table}
@@ -269,7 +318,7 @@ r"""\hline
     
     plt.bar(x - width, r_bef, width, label='1. Bez obrany (Overhead 0%)', color='#d62728', alpha=0.85)
     plt.bar(x, r_light, width, label=f'2. Adaptivní padding 1-128B (Overhead {overhead_light:.1f}%)', color='#ff7f0e', alpha=0.85)
-    plt.bar(x + width, r_full, width, label=f'3. Cell Coalescing & Mimicry (Overhead {overhead_full:.1f}%)', color='#2ca02c', alpha=0.85)
+    plt.bar(x + width, r_full, width, label=f'3. Cell Coalescing & Cover Shaping (Overhead {overhead_full:.1f}%)', color='#2ca02c', alpha=0.85)
     
     plt.ylabel('Schopnost detekce cenzora / Recall (%)', fontsize=12, fontweight='bold')
     plt.title('Účinnost obranných mechanismů v poměru k režii šířky pásma', fontsize=13, fontweight='bold')

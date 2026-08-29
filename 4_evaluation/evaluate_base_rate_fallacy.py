@@ -74,16 +74,19 @@ def main():
     host_fdrs_corr_core = []
     
     for m in m_flows:
-        # Ideal independent
-        eff_host_fpr_ideal = max(1e-18, single_fpr ** m)
-        prec_ideal_edge = bayes_precision(tpr, eff_host_fpr_ideal, alpha_edge)
-        prec_ideal_core = bayes_precision(tpr, eff_host_fpr_ideal, alpha_core)
+        # Scale TPR for M-flow host confirmation (TPR^m)
+        eff_host_tpr = max(1e-12, float(tpr ** m))
+        
+        # Ideal independent false positive rate (FPR^m)
+        eff_host_fpr_ideal = max(1e-18, float(single_fpr ** m))
+        prec_ideal_edge = bayes_precision(eff_host_tpr, eff_host_fpr_ideal, alpha_edge)
+        prec_ideal_core = bayes_precision(eff_host_tpr, eff_host_fpr_ideal, alpha_core)
         host_fdrs_ideal_edge.append((1.0 - prec_ideal_edge) * 100.0)
         host_fdrs_ideal_core.append((1.0 - prec_ideal_core) * 100.0)
         
         # Correlated error mixture: rho * single_fpr + (1 - rho) * single_fpr^m
         eff_host_fpr_corr = rho_corr * single_fpr + (1.0 - rho_corr) * eff_host_fpr_ideal
-        prec_corr_core = bayes_precision(tpr, eff_host_fpr_corr, alpha_core)
+        prec_corr_core = bayes_precision(eff_host_tpr, eff_host_fpr_corr, alpha_core)
         host_fdrs_corr_core.append((1.0 - prec_corr_core) * 100.0)
         
     plt.figure(figsize=(10, 6))

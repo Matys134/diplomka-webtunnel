@@ -89,7 +89,7 @@ def extract_raw_packets_from_pcap(pcap_path: str, post_handshake_only: bool = Fa
     if post_handshake_only:
         first_app_data_idx = None
         for idx, (t, signed_l, raw_payload) in enumerate(packets):
-            # TLS Record header: ContentType 0x17 (Application Data), Version 0x03 (TLS)
+            # TLS Record header: ContentType 0x17 (Application Data) with SSLv3/TLS major version 0x03
             if len(raw_payload) >= 3 and raw_payload[0] == 0x17 and raw_payload[1] == 0x03:
                 first_app_data_idx = idx
                 break
@@ -117,16 +117,20 @@ def compute_flow_statistics(packets: List[Tuple[float, int]]) -> np.ndarray:
     signed_lens = np.array([p[1] for p in packets], dtype=np.float64)
     abs_lens = np.abs(signed_lens)
     
-    up_lens = abs_lens[signed_lens > 0]
-    down_lens = abs_lens[signed_lens < 0]
+    raw_up_lens = abs_lens[signed_lens > 0]
+    raw_down_lens = abs_lens[signed_lens < 0]
     
-    if len(up_lens) == 0: up_lens = np.array([0.0])
-    if len(down_lens) == 0: down_lens = np.array([0.0])
+    n_up = len(raw_up_lens)
+    n_down = len(raw_down_lens)
+    n_total = len(abs_lens)
+    
+    up_lens = raw_up_lens if n_up > 0 else np.array([0.0])
+    down_lens = raw_down_lens if n_down > 0 else np.array([0.0])
     
     iats = np.diff(timestamps)
     if len(iats) == 0: iats = np.array([0.0])
     
-    # Burst analysis
+    # Burst dynamics
     bursts_pkts = []
     bursts_bytes = []
     bursts_dur = []
@@ -160,25 +164,25 @@ def compute_flow_statistics(packets: List[Tuple[float, int]]) -> np.ndarray:
     
     # 48 feature vector construction
     feat = [
-        # Total lengths
+        # Total lengths (0-9)
         float(np.min(abs_lens)), float(np.max(abs_lens)), float(np.mean(abs_lens)), float(np.std(abs_lens)), float(stats.skew(abs_lens) if len(abs_lens) > 2 and np.std(abs_lens) > 1e-5 else 0.0),
         float(np.percentile(abs_lens, 10)), float(np.percentile(abs_lens, 25)), float(np.percentile(abs_lens, 50)), float(np.percentile(abs_lens, 75)), float(np.percentile(abs_lens, 90)),
-        # Upstream lengths
-        float(np.min(up_lens)), float(np.max(up_lens)), float(np.mean(up_lens)), float(np.std(up_lens)),
-        float(np.percentile(up_lens, 10)), float(np.percentile(up_lens, 25)), float(np.percentile(up_lens, 50)), float(np.percentile(up_lens, 75)), float(np.percentile(up_lens, 90)),
-        # Downstream lengths
-        float(np.min(down_lens)), float(np.max(down_lens)), float(np.mean(down_lens)), float(np.std(down_lens)),
-        float(np.percentile(down_lens, 10)), float(np.percentile(down_lens, 25)), float(np.percentile(down_lens, 50)), float(np.percentile(down_lens, 75)), float(np.percentile(down_lens, 90)),
-        # IAT stats
+        # Upstream lengths (10-18)
+        float(np.min(up_lens) if n_up > 0 else 0.0), float(np.max(up_lens) if n_up > 0 else 0.0), float(np.mean(up_lens) if n_up > 0 else 0.0), float(np.std(up_lens) if n_up > 0 else 0.0),
+        float(np.percentile(up_lens, 10) if n_up > 0 else 0.0), float(np.percentile(up_lens, 25) if n_up > 0 else 0.0), float(np.percentile(up_lens, 50) if n_up > 0 else 0.0), float(np.percentile(up_lens, 75) if n_up > 0 else 0.0), float(np.percentile(up_lens, 90) if n_up > 0 else 0.0),
+        # Downstream lengths (19-27)
+        float(np.min(down_lens) if n_down > 0 else 0.0), float(np.max(down_lens) if n_down > 0 else 0.0), float(np.mean(down_lens) if n_down > 0 else 0.0), float(np.std(down_lens) if n_down > 0 else 0.0),
+        float(np.percentile(down_lens, 10) if n_down > 0 else 0.0), float(np.percentile(down_lens, 25) if n_down > 0 else 0.0), float(np.percentile(down_lens, 50) if n_down > 0 else 0.0), float(np.percentile(down_lens, 75) if n_down > 0 else 0.0), float(np.percentile(down_lens, 90) if n_down > 0 else 0.0),
+        # IAT stats (28-36)
         float(np.min(iats)), float(np.max(iats)), float(np.mean(iats)), float(np.std(iats)),
         float(np.percentile(iats, 10)), float(np.percentile(iats, 25)), float(np.percentile(iats, 50)), float(np.percentile(iats, 75)), float(np.percentile(iats, 90)),
-        # Burst dynamics
+        # Burst dynamics (37-43)
         float(len(b_pkts)), float(np.mean(b_pkts)), float(np.std(b_pkts)),
         float(np.mean(b_bytes)), float(np.std(b_bytes)), float(np.mean(b_dur)), float(np.std(b_dur)),
-        # Ratios & Totals
-        float(len(up_lens) / max(len(abs_lens), 1)),
-        float(np.sum(up_lens) / max(np.sum(abs_lens), 1.0)),
-        float(len(abs_lens)),
+        # Ratios & Totals (44-47)
+        float(n_up / max(n_total, 1)),
+        float(np.sum(raw_up_lens) / max(np.sum(abs_lens), 1.0)),
+        float(n_total),
         float(np.sum(abs_lens))
     ]
     return np.array(feat, dtype=np.float32)
