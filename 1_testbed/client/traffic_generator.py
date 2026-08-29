@@ -56,31 +56,40 @@ def run_webtunnel_request(num_requests: int = None, http_server: str = "https://
         time.sleep(random.uniform(0.3, 1.5))
 
 def run_direct_web_browsing(num_requests: int = None, http_server: str = "https://legitimate-servers:8443"):
-    """Sends direct HTTPS requests over HTTP/2 with realistic browsing mix (GET + Upload/POST)."""
+    """Sends direct HTTPS requests over HTTP/2 with realistic modern SPA browsing mix (GET + GraphQL/REST + Telemetry)."""
     headers = {"User-Agent": random.choice(USER_AGENTS)}
     with httpx.Client(http2=True, verify=False, headers=headers, timeout=15.0) as client:
         if num_requests is None:
-            num_requests = random.randint(1, 3)
+            num_requests = random.randint(2, 4)
             
         for i in range(num_requests):
-            target = random.choice(WEBTUNNEL_TARGETS)
+            # Mix between static GET, REST feed, and GraphQL queries
+            req_mode = random.choices(["get", "feed", "graphql"], weights=[0.40, 0.30, 0.30])[0]
             try:
-                resp = client.get(target)
+                if req_mode == "get":
+                    target = random.choice(WEBTUNNEL_TARGETS)
+                    _ = client.get(target)
+                elif req_mode == "feed":
+                    _ = client.get(f"{http_server}/api/v1/feed")
+                else:
+                    # GraphQL query body (300 - 650 Bytes upstream)
+                    query = {"query": "{ user(id: 42) { id name profile { bio theme } notifications(limit: 5) { id text } } }", "variables": {"client_ts": time.time()}}
+                    _ = client.post(f"{http_server}/api/v1/graphql", json=query)
             except Exception:
                 pass
-            time.sleep(random.uniform(0.2, 0.8))
+            time.sleep(random.uniform(0.15, 0.6))
             
-        # Simulate realistic modern web upload / telemetry (300 - 1200 Bytes upstream payload)
-        if random.random() < 0.6:
+        # Simulate realistic modern web telemetry (300 - 800 Bytes upstream payload)
+        if random.random() < 0.7:
             try:
-                upload_size = random.randint(300, 1200)
+                upload_size = random.randint(300, 800)
                 payload = {"telemetry": "D" * upload_size, "event": "page_view", "ts": time.time()}
                 _ = client.post(f"{http_server}/api/v1/telemetry", json=payload)
             except Exception:
                 pass
 
 async def run_legitimate_ws_ticker(ws_url: str, duration_sec: float = None):
-    """Connects to legitimate WebSocket ticker over WSS (TLS 1.3) and receives bursts with client heartbeats."""
+    """Connects to legitimate WebSocket ticker over WSS (TLS 1.3) and receives orderbooks with client subscription updates."""
     if duration_sec is None:
         duration_sec = random.uniform(2.0, 4.5)
         
@@ -88,58 +97,85 @@ async def run_legitimate_ws_ticker(ws_url: str, duration_sec: float = None):
         async with websockets.connect(ws_url, ssl=SSL_CTX) as ws:
             start_t = time.time()
             while time.time() - start_t < duration_sec:
-                # Occasional client subscription update (150 - 450 Bytes)
-                if random.random() < 0.15:
-                    sub_msg = {"action": "subscribe", "channels": ["trades", "depth", "kline"], "client_id": "x" * random.randint(100, 350)}
+                # Client orderbook subscription / filter update (300 - 650 Bytes) - overlaps with Tor cells!
+                if random.random() < 0.25:
+                    sub_msg = {
+                        "action": "subscribe",
+                        "channels": ["depth20@100ms", "trade@100ms", "kline_1m"],
+                        "params": {"symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"], "depth_level": 20},
+                        "client_token": "tok_" + "x" * random.randint(150, 400),
+                        "timestamp": time.time()
+                    }
                     await ws.send(json.dumps(sub_msg))
                 _ = await ws.recv()
     except Exception:
         pass
 
 async def run_legitimate_ws_chat(ws_url: str, num_messages: int = None):
-    """Simulates interactive chat with realistic message lengths (200 - 800 Bytes upstream) over WSS."""
+    """Simulates interactive collaboration / rich chat with realistic message lengths (250 - 750 Bytes) over WSS."""
     if num_messages is None:
         num_messages = random.randint(4, 10)
         
     try:
         async with websockets.connect(ws_url, ssl=SSL_CTX) as ws:
             for i in range(num_messages):
-                msg_len = random.randint(200, 800)
-                msg = f"msg_{i}_{'k' * msg_len}"
-                await ws.send(msg)
+                msg_len = random.randint(250, 750)
+                # Structured JSON chat payload
+                chat_payload = {
+                    "action": "send_message",
+                    "channel_id": "chan_dev_01",
+                    "content": f"msg_{i}_{'k' * msg_len}",
+                    "client_metadata": {"device": "desktop_linux", "client_ts": time.time()}
+                }
+                await ws.send(json.dumps(chat_payload))
                 _ = await ws.recv()
-                await asyncio.sleep(random.uniform(0.05, 0.4))
+                await asyncio.sleep(random.uniform(0.05, 0.35))
     except Exception:
         pass
 
 def run_legitimate_video_streaming(base_url: str, num_segments: int = None):
-    """Simulates adaptive video playback over HTTP/2 TLS 1.3 (burst-and-idle pattern)."""
+    """Simulates adaptive video playback over HTTP/2 TLS 1.3 with ABR control negotiation (burst-and-idle pattern)."""
     if num_segments is None:
         num_segments = random.randint(2, 5)
         
     headers = {"User-Agent": random.choice(USER_AGENTS)}
     with httpx.Client(http2=True, verify=False, headers=headers, timeout=15.0) as client:
+        try:
+            # 1. Fetch MPD manifest
+            _ = client.get(f"{base_url}/video/manifest.mpd")
+            # 2. Send ABR rate control telemetry
+            _ = client.get(f"{base_url}/video/abr_control")
+        except Exception:
+            pass
+            
         for i in range(num_segments):
             url = f"{base_url}/video/segment_{i}.m4s"
             try:
                 _ = client.get(url)
             except Exception:
                 pass
-            time.sleep(random.uniform(0.5, 1.2))
+            time.sleep(random.uniform(0.3, 0.9))
 
 def run_legitimate_web_assets(base_url: str, num_assets: int = None):
-    """Simulates web page asset downloading over HTTP/2 TLS 1.3."""
+    """Simulates modern web page asset downloading over HTTP/2 TLS 1.3 (mixed bundle sizes)."""
     if num_assets is None:
         num_assets = random.randint(5, 15)
     headers = {"User-Agent": random.choice(USER_AGENTS)}
     with httpx.Client(http2=True, verify=False, headers=headers, timeout=10.0) as client:
+        # Request small metadata/icons first
+        try:
+            _ = client.get(f"{base_url}/web/assets/icon_favicon.ico")
+            _ = client.get(f"{base_url}/web/assets/meta_manifest.json")
+        except Exception:
+            pass
+            
         for i in range(num_assets):
-            url = f"{base_url}/web/assets/item_{i}.bin"
+            url = f"{base_url}/web/assets/bundle_chunk_{i}.bin"
             try:
                 _ = client.get(url)
             except Exception:
                 pass
-            time.sleep(random.uniform(0.02, 0.15))
+            time.sleep(random.uniform(0.02, 0.12))
 
 def main():
     parser = argparse.ArgumentParser(description="Testbed Traffic Generator (TLS 1.3 Enabled)")
