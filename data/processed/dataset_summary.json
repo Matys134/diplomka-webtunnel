@@ -1,18 +1,18 @@
 {
-    "total_samples": 1725,
+    "total_samples": 1746,
     "split_strategy": "Session-Stratified-Anti-Leakage (1-70 Train, 71-85 Val, 86-100 Test)",
     "classes": {
-        "webtunnel": 283,
-        "direct_web_browsing": 289,
-        "websocket_ticker": 279,
-        "websocket_chat": 300,
-        "video_streaming": 277,
-        "web_assets": 297
+        "webtunnel": 299,
+        "direct_web_browsing": 300,
+        "websocket_ticker": 299,
+        "websocket_chat": 289,
+        "video_streaming": 271,
+        "web_assets": 288
     },
     "splits": {
-        "train": 1215,
-        "val": 244,
-        "test": 266
+        "train": 1229,
+        "val": 265,
+        "test": 252
     },
     "tabular_feature_count": 48,
     "sequence_shape": [

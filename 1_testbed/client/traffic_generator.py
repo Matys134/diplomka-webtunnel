@@ -63,47 +63,46 @@ def run_direct_web_browsing(num_requests: int = None, http_server: str = "https:
             num_requests = random.randint(2, 4)
             
         for i in range(num_requests):
-            # Mix between static GET, REST feed, and GraphQL queries
-            req_mode = random.choices(["get", "feed", "graphql"], weights=[0.40, 0.30, 0.30])[0]
+            # Mix between REST feed and GraphQL queries (350 - 750 Bytes)
+            req_mode = random.choices(["feed", "graphql"], weights=[0.45, 0.55])[0]
             try:
-                if req_mode == "get":
-                    target = random.choice(WEBTUNNEL_TARGETS)
-                    _ = client.get(target)
-                elif req_mode == "feed":
+                if req_mode == "feed":
                     _ = client.get(f"{http_server}/api/v1/feed")
                 else:
-                    # GraphQL query body (300 - 650 Bytes upstream)
-                    query = {"query": "{ user(id: 42) { id name profile { bio theme } notifications(limit: 5) { id text } } }", "variables": {"client_ts": time.time()}}
+                    # GraphQL query body (380 - 700 Bytes upstream)
+                    query = {
+                        "query": "{ user(id: 42) { id name profile { bio theme avatar } preferences { notifications email } feed(limit: 10) { id title summary ts } } }",
+                        "variables": {"client_ts": time.time(), "device_info": "Linux_x86_64_Chrome_122"}
+                    }
                     _ = client.post(f"{http_server}/api/v1/graphql", json=query)
             except Exception:
                 pass
-            time.sleep(random.uniform(0.15, 0.6))
+            time.sleep(random.uniform(0.12, 0.45))
             
-        # Simulate realistic modern web telemetry (300 - 800 Bytes upstream payload)
-        if random.random() < 0.7:
-            try:
-                upload_size = random.randint(300, 800)
-                payload = {"telemetry": "D" * upload_size, "event": "page_view", "ts": time.time()}
-                _ = client.post(f"{http_server}/api/v1/telemetry", json=payload)
-            except Exception:
-                pass
+        # Realistic web telemetry / state sync (380 - 750 Bytes upstream payload)
+        try:
+            upload_size = random.randint(380, 750)
+            payload = {"telemetry": "D" * upload_size, "event": "page_view", "ts": time.time(), "session_id": "sess_" + "s"*32}
+            _ = client.post(f"{http_server}/api/v1/telemetry", json=payload)
+        except Exception:
+            pass
 
 async def run_legitimate_ws_ticker(ws_url: str, duration_sec: float = None):
-    """Connects to legitimate WebSocket ticker over WSS (TLS 1.3) and receives orderbooks with client subscription updates."""
+    """Connects to legitimate WebSocket ticker over WSS (TLS 1.3) and streams L2 orderbooks with client subscription updates."""
     if duration_sec is None:
-        duration_sec = random.uniform(2.0, 4.5)
+        duration_sec = random.uniform(2.0, 4.0)
         
     try:
         async with websockets.connect(ws_url, ssl=SSL_CTX) as ws:
             start_t = time.time()
             while time.time() - start_t < duration_sec:
-                # Client orderbook subscription / filter update (300 - 650 Bytes) - overlaps with Tor cells!
-                if random.random() < 0.25:
+                # Client orderbook subscription / channel filter update (380 - 680 Bytes) - overlaps directly with Tor cells!
+                if random.random() < 0.55:
                     sub_msg = {
                         "action": "subscribe",
                         "channels": ["depth20@100ms", "trade@100ms", "kline_1m"],
                         "params": {"symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"], "depth_level": 20},
-                        "client_token": "tok_" + "x" * random.randint(150, 400),
+                        "client_token": "tok_" + "x" * random.randint(220, 450),
                         "timestamp": time.time()
                     }
                     await ws.send(json.dumps(sub_msg))
@@ -112,24 +111,24 @@ async def run_legitimate_ws_ticker(ws_url: str, duration_sec: float = None):
         pass
 
 async def run_legitimate_ws_chat(ws_url: str, num_messages: int = None):
-    """Simulates interactive collaboration / rich chat with realistic message lengths (250 - 750 Bytes) over WSS."""
+    """Simulates interactive collaboration / rich chat with realistic message lengths (350 - 750 Bytes) over WSS."""
     if num_messages is None:
-        num_messages = random.randint(4, 10)
+        num_messages = random.randint(4, 8)
         
     try:
         async with websockets.connect(ws_url, ssl=SSL_CTX) as ws:
             for i in range(num_messages):
-                msg_len = random.randint(250, 750)
+                msg_len = random.randint(320, 680)
                 # Structured JSON chat payload
                 chat_payload = {
                     "action": "send_message",
                     "channel_id": "chan_dev_01",
                     "content": f"msg_{i}_{'k' * msg_len}",
-                    "client_metadata": {"device": "desktop_linux", "client_ts": time.time()}
+                    "client_metadata": {"device": "desktop_linux", "client_ts": time.time(), "client_hash": "h"*32}
                 }
                 await ws.send(json.dumps(chat_payload))
                 _ = await ws.recv()
-                await asyncio.sleep(random.uniform(0.05, 0.35))
+                await asyncio.sleep(random.uniform(0.04, 0.25))
     except Exception:
         pass
 

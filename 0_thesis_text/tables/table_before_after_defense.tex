@@ -6,17 +6,17 @@
 \hline
 \textbf{Model} & \textbf{Úroveň obranného mechanismu} & \textbf{Accuracy} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Režie pásma} \\
 \hline
-\multirow{3}{*}{1D-CNN (Deep Packet)} & Původní stav (bez obrany) & 98.9\% & 93.3\% & 96.6\% & 0.0\% \\
- & Adaptivní padding (1--128\,B) & 98.5\% & 91.1\% & 95.3\% & 4.2\% \\
- & Cell Coalescing \& Cover Shaping & 98.5\% & \textbf{91.1\%} & \textbf{95.3\%} & 12.2\% \\
+\multirow{3}{*}{1D-CNN (Deep Packet)} & Původní stav (bez obrany) & 98.8\% & 95.6\% & 96.6\% & 0.0\% \\
+ & Adaptivní padding (1--128\,B) & 99.2\% & 97.8\% & 97.8\% & 3.7\% \\
+ & Cell Coalescing \& Cover Shaping & 99.6\% & \textbf{100.0\%} & \textbf{98.9\%} & 11.4\% \\
 \hline
-\multirow{3}{*}{Flow-Transformer} & Původní stav (bez obrany) & 98.9\% & 95.6\% & 96.6\% & 0.0\% \\
- & Adaptivní padding (1--128\,B) & 98.9\% & 95.6\% & 96.6\% & 4.2\% \\
- & Cell Coalescing \& Cover Shaping & 99.6\% & \textbf{100.0\%} & \textbf{98.9\%} & 12.2\% \\
+\multirow{3}{*}{Flow-Transformer} & Původní stav (bez obrany) & 98.4\% & 93.3\% & 95.5\% & 0.0\% \\
+ & Adaptivní padding (1--128\,B) & 98.8\% & 95.6\% & 96.6\% & 3.7\% \\
+ & Cell Coalescing \& Cover Shaping & 97.6\% & \textbf{88.9\%} & \textbf{93.0\%} & 11.4\% \\
 \hline
-\multirow{3}{*}{XGBoost (Baseline)} & Původní stav (bez obrany) & 99.6\% & 100.0\% & 98.9\% & 0.0\% \\
- & Adaptivní padding (1--128\,B) & 99.2\% & 97.8\% & 97.8\% & 4.2\% \\
- & Cell Coalescing \& Cover Shaping & 98.1\% & \textbf{91.1\%} & \textbf{94.3\%} & 12.2\% \\
+\multirow{3}{*}{XGBoost (Baseline)} & Původní stav (bez obrany) & 99.2\% & 100.0\% & 97.8\% & 0.0\% \\
+ & Adaptivní padding (1--128\,B) & 98.8\% & 97.8\% & 96.7\% & 3.7\% \\
+ & Cell Coalescing \& Cover Shaping & 98.4\% & \textbf{95.6\%} & \textbf{95.6\%} & 11.4\% \\
 \hline
 \end{tabular}
 \end{table}

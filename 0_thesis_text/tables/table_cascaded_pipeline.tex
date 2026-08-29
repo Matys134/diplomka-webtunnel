@@ -6,12 +6,12 @@
 \hline
 \textbf{Úroveň / Architektura} & \textbf{Hardware} & \textbf{Accuracy} & \textbf{PR-AUC} & \textbf{Single-flow Lat.} & \textbf{Batch Propustnost} \\
 \hline
-Samostatný L1 filtr (XGBoost) & Ryzen 9800X3D & 99.6\% & 0.9985 & 80.7\,\mu\text{s} & 2,636,300 flows/s \\
-Samostatná L2 inspekce (1D-CNN) & RTX 5070 Ti & 98.9\% & 0.9965 & 190.2\,\mu\text{s} & 120,481 flows/s \\
+Samostatný L1 filtr (XGBoost) & Ryzen 9800X3D & 99.2\% & 0.9985 & 67.0\,\mu\text{s} & 2,216,768 flows/s \\
+Samostatná L2 inspekce (1D-CNN) & RTX 5070 Ti & 98.8\% & 0.9940 & 169.1\,\mu\text{s} & 182,266 flows/s \\
 \hline
-\textbf{Dvoustupňová kaskáda (Hybrid)} & \textbf{CPU + GPU} & \textbf{99.6\%} & \textbf{1.0000} & \textbf{87.8\,\mu\text{s}} & \textbf{1,446,444 flows/s} \\
+\textbf{Dvoustupňová kaskáda (Hybrid)} & \textbf{CPU + GPU} & \textbf{99.6\%} & \textbf{0.9990} & \textbf{71.7\,\mu\text{s}} & \textbf{1,656,975 flows/s} \\
 \hline
-\multicolumn{6}{l}{\footnotesize Pásmo nejistoty pro eskalaci na GPU: $p \in [0.05, 0.95]$; Míra odbavení na L1 (CPU): 96.2\%} \\
+\multicolumn{6}{l}{\footnotesize Pásmo nejistoty pro eskalaci na GPU: $p \in [0.05, 0.95]$; Míra odbavení na L1 (CPU): 97.2\%} \\
 \hline
 \end{tabular}
 \end{table}

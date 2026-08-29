@@ -9,26 +9,18 @@ import uvicorn
 
 app = FastAPI(title="Legitimate Hard Negatives Mock Server")
 
-# 1. WebSocket Live Ticker (Real-World Financial Depth / L2 Orderbook Snapshots)
+# 1. WebSocket Live Ticker (Real-World Financial Depth / L2 Orderbook Streaming)
 @app.websocket("/ws/ticker")
 async def websocket_ticker(websocket: WebSocket):
     await websocket.accept()
     symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "DOTUSDT", "XRPUSDT"]
     try:
         while True:
-            mode = random.choices(["small_tick", "orderbook_snapshot", "kline_batch"], weights=[0.40, 0.45, 0.15])[0]
-            if mode == "small_tick":
-                # Small tick update (60 - 120 Bytes)
-                msg = {
-                    "e": "trade",
-                    "s": random.choice(symbols),
-                    "p": round(random.uniform(1.0, 95000.0), 2),
-                    "q": round(random.uniform(0.001, 15.0), 4),
-                    "t": int(time.time() * 1000)
-                }
-            elif mode == "orderbook_snapshot":
-                # L2 Orderbook depth snapshot (350 - 750 Bytes) - directly overlaps with Tor cell framing!
-                num_levels = random.randint(8, 18)
+            # 85% L2 orderbook snapshots (400 - 750 Bytes), 15% Kline batch bursts (550 - 1100 Bytes)
+            mode = random.choices(["orderbook_snapshot", "kline_batch"], weights=[0.85, 0.15])[0]
+            if mode == "orderbook_snapshot":
+                # L2 Orderbook depth snapshot (420 - 750 Bytes) - directly in the Tor cell range (514-558B)!
+                num_levels = random.randint(10, 20)
                 bids = [[round(random.uniform(90000.0, 95000.0), 2), round(random.uniform(0.1, 5.0), 3)] for _ in range(num_levels)]
                 asks = [[round(random.uniform(95000.0, 99000.0), 2), round(random.uniform(0.1, 5.0), 3)] for _ in range(num_levels)]
                 msg = {
@@ -40,12 +32,12 @@ async def websocket_ticker(websocket: WebSocket):
                     "ts": int(time.time() * 1000)
                 }
             else:
-                # Kline batch / historical candle burst (500 - 1100 Bytes)
-                candles = [{"t": int(time.time()*1000) - i*60000, "o": 94000.0, "c": 94200.0, "v": 12.5} for i in range(random.randint(6, 14))]
+                # Kline batch / historical candle burst (550 - 1100 Bytes)
+                candles = [{"t": int(time.time()*1000) - i*60000, "o": 94000.0, "c": 94200.0, "v": 12.5} for i in range(random.randint(8, 16))]
                 msg = {"e": "kline_batch", "s": random.choice(symbols), "candles": candles}
                 
             await websocket.send_text(json.dumps(msg))
-            await asyncio.sleep(random.uniform(0.05, 0.30))
+            await asyncio.sleep(random.uniform(0.04, 0.22))
     except WebSocketDisconnect:
         pass
 
@@ -56,33 +48,30 @@ async def websocket_chat(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            await asyncio.sleep(random.uniform(0.02, 0.15))
+            await asyncio.sleep(random.uniform(0.02, 0.12))
             
-            # Mix of response types: rich message, embed, avatar/profile sync, typing event
-            resp_type = random.choices(["rich_msg", "state_sync", "typing_ack"], weights=[0.55, 0.30, 0.15])[0]
+            # 70% rich formatted messages (380 - 780 Bytes), 30% canvas/presence state sync (450 - 850 Bytes)
+            resp_type = random.choices(["rich_msg", "state_sync"], weights=[0.70, 0.30])[0]
             if resp_type == "rich_msg":
-                # Rich text message with embeds and reactions (320 - 820 Bytes)
-                payload_len = random.randint(250, 750)
+                # Rich text message with embeds and reactions (380 - 780 Bytes)
+                payload_len = random.randint(320, 680)
                 reply = {
                     "type": "message_create",
                     "channel_id": "1234567890",
                     "author": {"id": "user_987", "name": "collaborator", "avatar": "hash_" + "a"*32},
                     "content": "R" * payload_len,
-                    "embeds": [{"title": "Shared Resource", "url": "https://example.com/item", "description": "d"*120}],
+                    "embeds": [{"title": "Shared Resource", "url": "https://example.com/item", "description": "d"*80}],
                     "reactions": [{"emoji": "👍", "count": 3}],
                     "server_time": time.time()
                 }
-            elif resp_type == "state_sync":
-                # Presence / Workspace canvas state synchronization (400 - 900 Bytes)
+            else:
+                # Presence / Workspace canvas state synchronization (450 - 850 Bytes)
                 reply = {
                     "type": "presence_update",
                     "status": "online",
-                    "canvas_deltas": [{"x": random.randint(0, 1920), "y": random.randint(0, 1080), "op": "draw", "buf": "b" * random.randint(200, 600)}],
+                    "canvas_deltas": [{"x": random.randint(0, 1920), "y": random.randint(0, 1080), "op": "draw", "buf": "b" * random.randint(300, 650)}],
                     "timestamp": time.time()
                 }
-            else:
-                # Small typing ack (80 - 150 Bytes)
-                reply = {"type": "typing_ack", "user_id": "user_987", "ts": time.time()}
                 
             await websocket.send_text(json.dumps(reply))
     except WebSocketDisconnect:
