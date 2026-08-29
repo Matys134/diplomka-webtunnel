@@ -2,16 +2,16 @@
 \centering
 \caption{Dekompozice přesnosti klasifikátorů napříč všemi 6 třídami provozu (WebTunnel vs. Hard Negatives)}
 \label{tab:class_breakdown}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \hline
-\textbf{Třída síťového provozu} & \textbf{Typ protokolu} & \textbf{Počet toků} & \textbf{1D-CNN Přesnost} & \textbf{XGBoost Přesnost} \\
+\textbf{Třída síťového provozu} & \textbf{Typ protokolu} & \textbf{Počet toků} & \textbf{1D-CNN} & \textbf{Transformer} & \textbf{XGBoost} \\
 \hline
-WebTunnel & Tor over HTTP/2 WSS & 39 & 82.1\% & 100.0\% \\
-Direct Browsing & Čisté HTTPS (TLS 1.3) & 45 & 100.0\% & 100.0\% \\
-WS Ticker & WSS Live JSON & 31 & 100.0\% & 100.0\% \\
-WS Chat & WSS Interaktivní & 31 & 100.0\% & 100.0\% \\
-Video Stream & HTTPS DASH/HLS & 33 & 100.0\% & 100.0\% \\
-Web Assets & HTTPS Statický bundle & 38 & 100.0\% & 97.4\% \\
+WebTunnel & Tor over HTTP/2 WSS & 39 & 82.1\% & 82.1\% & 100.0\% \\
+Direct Browsing & Čisté HTTPS (TLS 1.3) & 45 & 100.0\% & 100.0\% & 100.0\% \\
+WS Ticker & WSS Live JSON & 31 & 100.0\% & 100.0\% & 100.0\% \\
+WS Chat & WSS Interaktivní & 31 & 100.0\% & 100.0\% & 100.0\% \\
+Video Stream & HTTPS DASH/HLS & 33 & 100.0\% & 97.0\% & 100.0\% \\
+Web Assets & HTTPS Statický bundle & 38 & 100.0\% & 100.0\% & 97.4\% \\
 \hline
 \end{tabular}
 \end{table}
