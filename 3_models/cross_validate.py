@@ -40,10 +40,12 @@ def cv_xgboost(X_tab, y_bin, y_mul, groups, n_splits=5):
         X_tr, y_tr = X_tr_full[inner_tr_idx], y_tr_full[inner_tr_idx]
         X_val, y_val = X_tr_full[inner_val_idx], y_tr_full[inner_val_idx]
         
+        scale_pos_weight = float(np.sum(y_tr == 0) / max(np.sum(y_tr == 1), 1))
+        
         clf = xgb.XGBClassifier(
             n_estimators=300, max_depth=6, learning_rate=0.05,
             subsample=0.8, colsample_bytree=0.8, eval_metric="logloss",
-            early_stopping_rounds=15, random_state=42
+            early_stopping_rounds=15, scale_pos_weight=scale_pos_weight, random_state=42
         )
         clf.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
         

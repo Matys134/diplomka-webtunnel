@@ -34,7 +34,9 @@ class WebTunnelTransformer(nn.Module):
     def __init__(self, in_features=2, d_model=64, nhead=4, num_layers=2, dim_feedforward=256, dropout=0.1):
         super().__init__()
         self.input_proj = nn.Linear(in_features, d_model)
-        self.pos_encoder = PositionalEncoding(d_model)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model))
+        nn.init.trunc_normal_(self.cls_token, std=0.02)
+        self.pos_encoder = PositionalEncoding(d_model, max_len=250)
         
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
@@ -56,11 +58,13 @@ class WebTunnelTransformer(nn.Module):
     def forward(self, x):
         # x shape: (B, SeqLen, InFeatures) -> (B, 200, 2)
         h = self.input_proj(x)
+        cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
+        h = torch.cat((cls_tokens, h), dim=1)  # (B, 201, d_model)
         h = self.pos_encoder(h)
         h = self.transformer_encoder(h)
-        # Mean pooling across sequence dimension
-        pooled = h.mean(dim=1)
-        out = self.classifier(pooled)
+        # Classify based on the prepended [CLS] token representation
+        cls_rep = h[:, 0]
+        out = self.classifier(cls_rep)
         return out
 
 def main():

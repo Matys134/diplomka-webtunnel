@@ -103,8 +103,8 @@ def explain_1d_cnn_saliency():
     plt.close()
     print(f"[OK] Saved {PLOT_DIR}/1d_cnn_saliency_map.png")
 
-def explain_transformer_attention():
-    print("--- Running Flow-Transformer Attention & Sequence Saliency ---")
+def explain_transformer_gradient_saliency():
+    print("--- Running Flow-Transformer Input Gradient Saliency Attribution ---")
     from train_transformer import WebTunnelTransformer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -151,7 +151,7 @@ def main():
     sns.set_theme(style="whitegrid")
     explain_xgboost()
     explain_1d_cnn_saliency()
-    explain_transformer_attention()
+    explain_transformer_gradient_saliency()
 
 if __name__ == "__main__":
     main()

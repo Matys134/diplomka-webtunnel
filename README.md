@@ -24,9 +24,9 @@ Evaluated across **1,800 PCAPs (1,582 verified TLS 1.3 network flows)** under na
 
 | Model | Architecture / Hardware | Accuracy ($\mu \pm \sigma$) | PR-AUC ($\mu \pm \sigma$) | ROC-AUC ($\mu \pm \sigma$) | Latency / Flow | Throughput |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.5 \pm 0.2\%$** | **$0.999 \pm 0.001$** | **$1.000 \pm 0.000$** | **0.0004 ms** | **2,837,824 flows/s** |
-| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$98.8 \pm 0.6\%$** | **$0.992 \pm 0.012$** | **$0.999 \pm 0.002$** | **0.1242 ms** | **8,051 flows/s** |
-| **Flow-Transformer** | Multi-Head Self-Attention (CUDA) | **$98.0 \pm 0.4\%$** | **$0.966 \pm 0.028$** | **$0.986 \pm 0.014$** | **0.1805 ms** | **5,541 flows/s** |
+| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.6 \pm 0.3\%$** | **$0.999 \pm 0.002$** | **$1.000 \pm 0.000$** | **0.0004 ms** | **2,837,824 flows/s** |
+| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$98.9 \pm 0.6\%$** | **$0.991 \pm 0.012$** | **$0.999 \pm 0.001$** | **0.1242 ms** | **8,051 flows/s** |
+| **Flow-Transformer** | [CLS] Token Attention (CUDA) | **$98.2 \pm 0.6\%$** | **$0.977 \pm 0.009$** | **$0.989 \pm 0.007$** | **0.1895 ms** | **5,278 flows/s** |
 
 ### 2. 2-Tier Cascaded Classification Architecture (L1 CPU $\rightarrow$ L2 GPU)
 To achieve line-rate inspection on ISP backbone networks, we design and benchmark a hybrid pipeline:
