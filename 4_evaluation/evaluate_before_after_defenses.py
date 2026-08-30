@@ -1,36 +1,47 @@
 #!/usr/bin/env python3
+"""
+Protocol-Level Countermeasures Evaluation:
+Simulates and evaluates:
+1. Mode 1: Lightweight Adaptive Intra-frame Padding (1-128 Bytes random padding + micro-jitter, ~4-5% overhead).
+2. Mode 2: Cell Coalescing & Cover Traffic Shaping (Coalesces 514B cells into 1448B frames + cover traffic, ~11-14% overhead).
+Evaluates XGBoost, 1D-CNN, and Flow-Transformer before vs. after defense.
+Exports LaTeX tables and publication figures.
+"""
 import os
 import sys
-import json
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
 import xgboost as xgb
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, average_precision_score
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from common.config import (
+    TABULAR_DATASET_PATH,
+    SEQUENCE_DATASET_PATH,
+    XGBOOST_MODEL_JSON,
+    CNN_MODEL_PATH,
+    TRANSFORMER_MODEL_PATH,
+    PLOTS_DIR,
+    LATEX_TABLES_DIR,
+    RANDOM_SEED,
+    set_global_seed,
+    setup_matplotlib_style
 )
-
-sys.path.append("2_data_pipeline")
-sys.path.append("3_models")
 from sanitizer import compute_flow_statistics
-from train_1d_cnn import WebTunnel1DCNN
-from train_transformer import WebTunnelTransformer
+from architectures import WebTunnel1DCNN, WebTunnelTransformer
+from utils import load_tabular_data, load_sequence_data, compute_metrics, get_device
 
-PROCESSED_DIR = "data/processed"
-PLOT_DIR = "4_evaluation/plots"
-TABLE_DIR = "0_thesis_text/tables"
 
 def simulate_lightweight_padding(X_seq, y_bin):
-    """
-    Mode 1: Lightweight Adaptive Padding (1-128 Bytes random padding + micro-jitter).
-    Low bandwidth overhead (~5-8%).
-    """
+    """Mode 1: Lightweight Adaptive Intra-frame Padding (1-128 Bytes random padding + micro-jitter)."""
     X_def = X_seq.copy()
     total_orig = 0
     total_pad = 0
-    
+
     for i in range(len(y_bin)):
         if y_bin[i] == 1:
             for s in range(X_def.shape[1]):
@@ -40,345 +51,281 @@ def simulate_lightweight_padding(X_seq, y_bin):
                     continue
                 orig_bytes = abs(norm_len) * 1500.0
                 total_orig += orig_bytes
-                
-                # Random intra-frame padding
+
                 pad = np.random.randint(1, 129)
                 final_bytes = min(1480.0, orig_bytes + pad)
                 total_pad += (final_bytes - orig_bytes)
-                
-                # Small timing jitter
+
                 jitter_iat = min(1.0, norm_iat + np.random.uniform(0.001, 0.03))
-                
                 sign = 1.0 if norm_len > 0 else -1.0
                 X_def[i, s, 0] = sign * (final_bytes / 1500.0)
                 X_def[i, s, 1] = jitter_iat
-                
+
     overhead_pct = (total_pad / max(total_orig, 1.0)) * 100.0
     return X_def, overhead_pct
 
+
 def simulate_full_cell_coalescing_and_morphing(X_seq, y_bin):
-    """
-    Mode 2: Physically Authentic Cell Coalescing & Cover Traffic Shaping.
-    Physically coalesces consecutive Tor cells in the transport buffer into larger 
-    variable-size TLS/HTTP2 frames (up to MSS 1448 B), injects dummy handshake cover frames
-    to suppress circuit setup saliency (packets 1-15), and applies adaptive buffering delay.
-    """
-    X_def = X_seq.copy()
-    np.random.seed(42)
-    
-    total_orig = 0
-    total_morphed = 0
-    
+    """Mode 2: Physical Cell Coalescing into MTU (1448B) Frames and Cover Traffic Shaping."""
+    X_def = np.zeros_like(X_seq)
+    total_orig_bytes = 0
+    total_def_bytes = 0
+
     for i in range(len(y_bin)):
-        if y_bin[i] == 1:
-            orig_pkts = seq_to_packets(X_seq[i])
-            orig_bytes = sum(abs(p[1]) for p in orig_pkts)
-            total_orig += orig_bytes
-            
-            # Step 1: Coalesce adjacent packets of same direction
-            coalesced_pkts = []
-            buf_len = 0
-            buf_dir = 0
-            buf_t = 0.0
-            
-            for t, signed_l in orig_pkts:
-                d = 1 if signed_l > 0 else -1
-                l = abs(signed_l)
-                
-                # Check if we can coalesce with previous packet
-                if d == buf_dir and (buf_len + l) <= 1448:
-                    buf_len += l
-                else:
-                    if buf_len > 0:
-                        # Apply randomized bucket padding to the coalesced buffer
-                        target_bucket = np.random.choice([600, 900, 1200, 1448])
-                        padded_len = min(1448, max(buf_len, target_bucket if np.random.rand() < 0.6 else buf_len))
-                        coalesced_pkts.append((buf_t, buf_dir * padded_len))
-                    buf_dir = d
-                    buf_len = l
-                    buf_t = t + np.random.uniform(0.005, 0.025) # Buffering jitter
-                    
-            if buf_len > 0:
-                target_bucket = np.random.choice([600, 900, 1200, 1448])
-                padded_len = min(1448, max(buf_len, target_bucket if np.random.rand() < 0.6 else buf_len))
-                coalesced_pkts.append((buf_t, buf_dir * padded_len))
-                
-            # Step 2: Inject handshake cover frames during initial negotiation burst
-            morphed_pkts = []
-            curr_t = 0.0
-            for idx, (t, signed_l) in enumerate(coalesced_pkts):
-                # Inject dummy cover frames in the first 15 packets
-                if idx < 10 and np.random.rand() < 0.4:
-                    dummy_dir = -1 if signed_l > 0 else 1
-                    dummy_len = int(np.random.choice([64, 128, 256, 512]))
-                    morphed_pkts.append((curr_t + np.random.uniform(0.002, 0.010), dummy_dir * dummy_len))
-                morphed_pkts.append((t, signed_l))
-                curr_t = t
-                
-            # Reconstruct sequence tensor for the flow
-            morphed_bytes = sum(abs(p[1]) for p in morphed_pkts)
-            total_morphed += morphed_bytes
-            
-            # Convert morphed packets back to normalized tensor
-            new_tensor = np.zeros((X_seq.shape[1], 2), dtype=np.float32)
-            n_pkts = min(len(morphed_pkts), X_seq.shape[1])
-            prev_time = morphed_pkts[0][0] if n_pkts > 0 else 0.0
-            for s in range(n_pkts):
-                pt, pl = morphed_pkts[s]
-                dt = max(0.0, pt - prev_time)
-                prev_time = pt
-                new_tensor[s, 0] = np.clip(pl / 1500.0, -1.0, 1.0)
-                new_tensor[s, 1] = np.clip(np.log1p(dt) / 10.0, 0.0, 1.0)
-                
-            X_def[i] = new_tensor
-            
-    overhead_pct = ((total_morphed - total_orig) / max(total_orig, 1.0)) * 100.0
-    return X_def, overhead_pct
-
-def seq_to_packets(seq_item):
-    packets = []
-    curr_t = 0.0
-    for step in range(seq_item.shape[0]):
-        norm_len = seq_item[step, 0]
-        norm_iat = seq_item[step, 1]
-        if abs(norm_len) < 1e-5:
+        if y_bin[i] == 0:
+            X_def[i] = X_seq[i]
             continue
-        raw_signed_len = int(round(norm_len * 1500.0))
-        delta_t = float(np.expm1(norm_iat * 10.0))
-        curr_t += delta_t
-        packets.append((curr_t, raw_signed_len))
-    if len(packets) < 3:
-        packets = [(0.0, 50), (0.01, -50), (0.02, 50)]
-    return packets
 
-def extract_features_from_seq_matrix(X_seq_matrix):
-    feats = []
-    for i in range(len(X_seq_matrix)):
-        pkts = seq_to_packets(X_seq_matrix[i])
-        f = compute_flow_statistics(pkts)
-        feats.append(f)
-    return np.array(feats, dtype=np.float32)
+        raw_pkts = []
+        for s in range(X_seq.shape[1]):
+            val = X_seq[i, s, 0]
+            if abs(val) < 1e-4:
+                continue
+            direction = 1 if val > 0 else -1
+            length = int(round(abs(val) * 1500.0))
+            iat = float(X_seq[i, s, 1])
+            raw_pkts.append((direction, length, iat))
+            total_orig_bytes += length
 
-def compute_saliency(model_cnn, device, X_seq_tensor, y_bin):
-    X_wt = X_seq_tensor[y_bin == 1].clone().detach().to(device)
-    X_wt.requires_grad = True
-    
-    X_in = X_wt.permute(0, 2, 1)
-    outputs = model_cnn(X_in).squeeze(-1)
-    loss = outputs.sum()
-    loss.backward()
-    
-    grads = X_wt.grad.abs().cpu().numpy()
-    avg_saliency = grads.mean(axis=0).sum(axis=-1)
-    avg_saliency = avg_saliency / (avg_saliency.max() + 1e-8)
-    return avg_saliency
+        if not raw_pkts:
+            continue
 
-def calc_metrics(y_true, probs):
-    preds = (probs >= 0.5).astype(int)
-    return {
-        "acc": accuracy_score(y_true, preds),
-        "prec": precision_score(y_true, preds, zero_division=0),
-        "rec": recall_score(y_true, preds, zero_division=0),
-        "f1": f1_score(y_true, preds, zero_division=0),
-        "pr_auc": average_precision_score(y_true, probs),
-        "roc_auc": roc_auc_score(y_true, probs)
-    }
+        coalesced_pkts = []
+        curr_dir = None
+        curr_buf = 0
+        curr_iat = 0.0
+
+        for direction, length, iat in raw_pkts:
+            if curr_dir is None:
+                curr_dir = direction
+                curr_buf = length
+                curr_iat = iat
+            elif curr_dir == direction:
+                if curr_buf + length <= 1448:
+                    curr_buf += length
+                    curr_iat += iat * 0.5
+                else:
+                    coalesced_pkts.append((curr_dir, curr_buf, curr_iat))
+                    curr_buf = length
+                    curr_iat = iat
+            else:
+                coalesced_pkts.append((curr_dir, curr_buf, curr_iat))
+                curr_dir = direction
+                curr_buf = length
+                curr_iat = iat
+
+        if curr_buf > 0:
+            coalesced_pkts.append((curr_dir, curr_buf, curr_iat))
+
+        # Add dummy cover traffic in handshake
+        shaped_pkts = []
+        if coalesced_pkts:
+            shaped_pkts.append((1, np.random.randint(450, 750), 0.0))
+            shaped_pkts.append((-1, np.random.randint(600, 1100), np.random.uniform(0.01, 0.03)))
+
+        for direction, length, iat in coalesced_pkts:
+            if np.random.random() < 0.6:
+                pad = np.random.randint(16, 128)
+                length = min(1448, length + pad)
+            shaped_pkts.append((direction, length, iat + np.random.uniform(0.005, 0.04)))
+
+        for p_idx, (direction, length, iat) in enumerate(shaped_pkts[:X_def.shape[1]]):
+            total_def_bytes += length
+            X_def[i, p_idx, 0] = (direction * length) / 1500.0
+            X_def[i, p_idx, 1] = min(1.0, iat)
+
+    overhead_pct = ((total_def_bytes - total_orig_bytes) / max(total_orig_bytes, 1.0)) * 100.0
+    return X_def, max(0.0, overhead_pct)
+
+
+def recompute_tabular_features(X_seq_def):
+    """Recomputes the 48 statistical flow features from defense-modified packet sequences."""
+    X_tab_def = []
+    for i in range(len(X_seq_def)):
+        pkts = []
+        curr_t = 0.0
+        for s in range(X_seq_def.shape[1]):
+            norm_len = X_seq_def[i, s, 0]
+            norm_iat = X_seq_def[i, s, 1]
+            if abs(norm_len) < 1e-4:
+                continue
+            curr_t += float(norm_iat)
+            signed_len = int(round(norm_len * 1500.0))
+            pkts.append((curr_t, signed_len))
+
+        if len(pkts) < 3:
+            pkts = [(0.0, 500), (0.05, -500), (0.1, 500)]
+        X_tab_def.append(compute_flow_statistics(pkts))
+    return np.array(X_tab_def, dtype=np.float32)
+
 
 def main():
-    os.makedirs(PLOT_DIR, exist_ok=True)
-    os.makedirs(TABLE_DIR, exist_ok=True)
-    sns.set_theme(style="whitegrid")
-    
-    seq_data = np.load(os.path.join(PROCESSED_DIR, "sequence_dataset.npz"), allow_pickle=True)
-    tab_data = np.load(os.path.join(PROCESSED_DIR, "tabular_dataset.npz"), allow_pickle=True)
-    
-    X_test_seq, y_test = seq_data["X_test"], seq_data["y_test"]
-    X_test_tab = tab_data["X_test"]
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    # Load Models
-    model_cnn = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
-    model_cnn.load_state_dict(torch.load("3_models/saved_models/1d_cnn_best.pt", map_location=device))
-    model_cnn.eval()
-    
-    model_tf = WebTunnelTransformer(in_features=2, d_model=64, nhead=4, num_layers=2).to(device)
-    model_tf.load_state_dict(torch.load("3_models/saved_models/transformer_best.pt", map_location=device))
-    model_tf.eval()
-    
+    set_global_seed(RANDOM_SEED)
+    setup_matplotlib_style()
+    device = get_device()
+
+    tab_data = load_tabular_data(TABULAR_DATASET_PATH)
+    seq_data = load_sequence_data(SEQUENCE_DATASET_PATH)
+
+    X_tab_test, y_test = tab_data["X_test"], tab_data["y_test"]
+    X_seq_test = seq_data["X_test"]
+
+    # Load trained models
     clf_xgb = xgb.XGBClassifier()
-    clf_xgb.load_model("3_models/saved_models/xgboost_baseline.json")
-    
-    # 1. Evaluate BEFORE Defense
+    clf_xgb.load_model(XGBOOST_MODEL_JSON)
+
+    model_cnn = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
+    model_cnn.load_state_dict(torch.load(CNN_MODEL_PATH, map_location=device))
+    model_cnn.eval()
+
+    model_tf = WebTunnelTransformer(in_features=2, d_model=64, nhead=4, num_layers=2).to(device)
+    model_tf.load_state_dict(torch.load(TRANSFORMER_MODEL_PATH, map_location=device))
+    model_tf.eval()
+
+    # 1. Evaluate Original (Before Defense)
     print("=== 1. Evaluating BEFORE Defense (Original WebTunnel) ===")
-    X_seq_t = torch.from_numpy(np.transpose(X_test_seq, (0, 2, 1))).to(device)
+    probs_xgb_orig = clf_xgb.predict_proba(X_tab_test)[:, 1]
+    m_xgb_orig = compute_metrics(y_test, probs_xgb_orig, threshold=0.5)
+
     with torch.no_grad():
-        p_cnn_bef = model_cnn(X_seq_t).squeeze(-1).cpu().numpy()
-    X_tf_t = torch.from_numpy(X_test_seq).to(device)
+        tensor_cnn = torch.tensor(X_seq_test, dtype=torch.float32).permute(0, 2, 1).to(device)
+        probs_cnn_orig = model_cnn(tensor_cnn).squeeze(-1).cpu().numpy()
+    m_cnn_orig = compute_metrics(y_test, probs_cnn_orig, threshold=0.5)
+
     with torch.no_grad():
-        p_tf_bef = model_tf(X_tf_t).squeeze(-1).cpu().numpy()
-    p_xgb_bef = clf_xgb.predict_proba(X_test_tab)[:, 1]
-    
-    m_cnn_bef = calc_metrics(y_test, p_cnn_bef)
-    m_tf_bef = calc_metrics(y_test, p_tf_bef)
-    m_xgb_bef = calc_metrics(y_test, p_xgb_bef)
-    saliency_before = compute_saliency(model_cnn, device, torch.from_numpy(X_test_seq), y_test)
-    
-    # 2. Evaluate Mode 1: Lightweight Adaptive Padding
+        tensor_tf = torch.tensor(X_seq_test, dtype=torch.float32).to(device)
+        probs_tf_orig = model_tf(tensor_tf).squeeze(-1).cpu().numpy()
+    m_tf_orig = compute_metrics(y_test, probs_tf_orig, threshold=0.5)
+
+    # 2. Mode 1: Lightweight Adaptive Padding
     print("=== 2. Evaluating Mode 1: Lightweight Adaptive Padding (1-128B) ===")
-    X_def_light, overhead_light = simulate_lightweight_padding(X_test_seq, y_test)
-    
-    X_light_cnn_t = torch.from_numpy(np.transpose(X_def_light, (0, 2, 1))).to(device)
+    X_seq_m1, overhead_m1 = simulate_lightweight_padding(X_seq_test, y_test)
+    X_tab_m1 = recompute_tabular_features(X_seq_m1)
+
+    probs_xgb_m1 = clf_xgb.predict_proba(X_tab_m1)[:, 1]
+    m_xgb_m1 = compute_metrics(y_test, probs_xgb_m1, threshold=0.5)
+
     with torch.no_grad():
-        p_cnn_light = model_cnn(X_light_cnn_t).squeeze(-1).cpu().numpy()
-    X_light_tf_t = torch.from_numpy(X_def_light).to(device)
+        tensor_cnn_m1 = torch.tensor(X_seq_m1, dtype=torch.float32).permute(0, 2, 1).to(device)
+        probs_cnn_m1 = model_cnn(tensor_cnn_m1).squeeze(-1).cpu().numpy()
+    m_cnn_m1 = compute_metrics(y_test, probs_cnn_m1, threshold=0.5)
+
     with torch.no_grad():
-        p_tf_light = model_tf(X_light_tf_t).squeeze(-1).cpu().numpy()
-    X_light_tab = extract_features_from_seq_matrix(X_def_light)
-    p_xgb_light = clf_xgb.predict_proba(X_light_tab)[:, 1]
-    
-    m_cnn_light = calc_metrics(y_test, p_cnn_light)
-    m_tf_light = calc_metrics(y_test, p_tf_light)
-    m_xgb_light = calc_metrics(y_test, p_xgb_light)
-    
-    # 3. Evaluate Mode 2: Full Cell Coalescing & Cover Traffic Shaping
+        tensor_tf_m1 = torch.tensor(X_seq_m1, dtype=torch.float32).to(device)
+        probs_tf_m1 = model_tf(tensor_tf_m1).squeeze(-1).cpu().numpy()
+    m_tf_m1 = compute_metrics(y_test, probs_tf_m1, threshold=0.5)
+
+    # 3. Mode 2: Full Cell Coalescing & Cover Traffic Shaping
     print("=== 3. Evaluating Mode 2: Full Cell Coalescing & Cover Traffic Shaping ===")
-    X_def_full, overhead_full = simulate_full_cell_coalescing_and_morphing(X_test_seq, y_test)
-    
-    X_full_cnn_t = torch.from_numpy(np.transpose(X_def_full, (0, 2, 1))).to(device)
+    X_seq_m2, overhead_m2 = simulate_full_cell_coalescing_and_morphing(X_seq_test, y_test)
+    X_tab_m2 = recompute_tabular_features(X_seq_m2)
+
+    probs_xgb_m2 = clf_xgb.predict_proba(X_tab_m2)[:, 1]
+    m_xgb_m2 = compute_metrics(y_test, probs_xgb_m2, threshold=0.5)
+
     with torch.no_grad():
-        p_cnn_full = model_cnn(X_full_cnn_t).squeeze(-1).cpu().numpy()
-    X_full_tf_t = torch.from_numpy(X_def_full).to(device)
+        tensor_cnn_m2 = torch.tensor(X_seq_m2, dtype=torch.float32).permute(0, 2, 1).to(device)
+        probs_cnn_m2 = model_cnn(tensor_cnn_m2).squeeze(-1).cpu().numpy()
+    m_cnn_m2 = compute_metrics(y_test, probs_cnn_m2, threshold=0.5)
+
     with torch.no_grad():
-        p_tf_full = model_tf(X_full_tf_t).squeeze(-1).cpu().numpy()
-    X_full_tab = extract_features_from_seq_matrix(X_def_full)
-    p_xgb_full = clf_xgb.predict_proba(X_full_tab)[:, 1]
-    
-    m_cnn_full = calc_metrics(y_test, p_cnn_full)
-    m_tf_full = calc_metrics(y_test, p_tf_full)
-    m_xgb_full = calc_metrics(y_test, p_xgb_full)
-    saliency_after = compute_saliency(model_cnn, device, torch.from_numpy(X_def_full), y_test)
-    
+        tensor_tf_m2 = torch.tensor(X_seq_m2, dtype=torch.float32).to(device)
+        probs_tf_m2 = model_tf(tensor_tf_m2).squeeze(-1).cpu().numpy()
+    m_tf_m2 = compute_metrics(y_test, probs_tf_m2, threshold=0.5)
+
+    # Summary Report
     print("\n" + "="*85)
     print("       KOMPLEXNÍ SROVNÁNÍ: PŘED OBRANOU vs. LEHKÝ PADDING vs. PLNÝ MORPHING")
     print("="*85)
-    print(f"{'Model':<18} | {'Stav / Režim obrany':<32} | {'Accuracy':<9} | {'Recall':<9} | {'Overhead':<8}")
-    print("-"*85)
-    print(f"{'1D-CNN':<18} | {'1. Bez obrany (Původní WebTunnel)':<32} | {m_cnn_bef['acc']*100:8.1f}% | {m_cnn_bef['rec']*100:8.1f}% |    0.0%")
-    print(f"{'':<18} | {'2. Lehký padding (1-128B)':<32} | {m_cnn_light['acc']*100:8.1f}% | {m_cnn_light['rec']*100:8.1f}% | {overhead_light:7.1f}%")
-    print(f"{'':<18} | {'3. Plný Cell Coalescing & Mimicry':<32} | {m_cnn_full['acc']*100:8.1f}% | {m_cnn_full['rec']*100:8.1f}% | {overhead_full:7.1f}%")
-    print("-"*85)
-    print(f"{'Flow-Transformer':<18} | {'1. Bez obrany (Původní WebTunnel)':<32} | {m_tf_bef['acc']*100:8.1f}% | {m_tf_bef['rec']*100:8.1f}% |    0.0%")
-    print(f"{'':<18} | {'2. Lehký padding (1-128B)':<32} | {m_tf_light['acc']*100:8.1f}% | {m_tf_light['rec']*100:8.1f}% | {overhead_light:7.1f}%")
-    print(f"{'':<18} | {'3. Plný Cell Coalescing & Mimicry':<32} | {m_tf_full['acc']*100:8.1f}% | {m_tf_full['rec']*100:8.1f}% | {overhead_full:7.1f}%")
-    print("-"*85)
-    print(f"{'XGBoost':<18} | {'1. Bez obrany (Původní WebTunnel)':<32} | {m_xgb_bef['acc']*100:8.1f}% | {m_xgb_bef['rec']*100:8.1f}% |    0.0%")
-    print(f"{'':<18} | {'2. Lehký padding (1-128B)':<32} | {m_xgb_light['acc']*100:8.1f}% | {m_xgb_light['rec']*100:8.1f}% | {overhead_light:7.1f}%")
-    print(f"{'':<18} | {'3. Plný Cell Coalescing & Mimicry':<32} | {m_xgb_full['acc']*100:8.1f}% | {m_xgb_full['rec']*100:8.1f}% | {overhead_full:7.1f}%")
-    print("="*85)
-    
-    # Export LaTeX Table
-    tex = r"""\begin{table}[htbp]
-\centering
-\caption{Srovnání úrovní navržených protiopatření: Dopad na detekci a režii přenosového pásma}
-\label{tab:before_after_defense}
-\begin{tabular}{llcccc}
-\hline
-\textbf{Model} & \textbf{Úroveň obranného mechanismu} & \textbf{Accuracy} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Režie pásma} \\
-\hline
-\multirow{3}{*}{1D-CNN (Deep Packet)} & Původní stav (bez obrany) & """ + f"{m_cnn_bef['acc']*100:.1f}\\% & {m_cnn_bef['rec']*100:.1f}\\% & {m_cnn_bef['f1']*100:.1f}\\% & 0.0\\% \\\\\n" + \
-r""" & Adaptivní padding (1--128\,B) & """ + f"{m_cnn_light['acc']*100:.1f}\\% & {m_cnn_light['rec']*100:.1f}\\% & {m_cnn_light['f1']*100:.1f}\\% & {overhead_light:.1f}\\% \\\\\n" + \
-r""" & Cell Coalescing \& Cover Shaping & """ + f"{m_cnn_full['acc']*100:.1f}\\% & \\textbf{{{m_cnn_full['rec']*100:.1f}\\%}} & \\textbf{{{m_cnn_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
-r"""\hline
-\multirow{3}{*}{Flow-Transformer} & Původní stav (bez obrany) & """ + f"{m_tf_bef['acc']*100:.1f}\\% & {m_tf_bef['rec']*100:.1f}\\% & {m_tf_bef['f1']*100:.1f}\\% & 0.0\\% \\\\\n" + \
-r""" & Adaptivní padding (1--128\,B) & """ + f"{m_tf_light['acc']*100:.1f}\\% & {m_tf_light['rec']*100:.1f}\\% & {m_tf_light['f1']*100:.1f}\\% & {overhead_light:.1f}\\% \\\\\n" + \
-r""" & Cell Coalescing \& Cover Shaping & """ + f"{m_tf_full['acc']*100:.1f}\\% & \\textbf{{{m_tf_full['rec']*100:.1f}\\%}} & \\textbf{{{m_tf_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
-r"""\hline
-\multirow{3}{*}{XGBoost (Baseline)} & Původní stav (bez obrany) & """ + f"{m_xgb_bef['acc']*100:.1f}\\% & {m_xgb_bef['rec']*100:.1f}\\% & {m_xgb_bef['f1']*100:.1f}\\% & 0.0\\% \\\\\n" + \
-r""" & Adaptivní padding (1--128\,B) & """ + f"{m_xgb_light['acc']*100:.1f}\\% & {m_xgb_light['rec']*100:.1f}\\% & {m_xgb_light['f1']*100:.1f}\\% & {overhead_light:.1f}\\% \\\\\n" + \
-r""" & Cell Coalescing \& Cover Shaping & """ + f"{m_xgb_full['acc']*100:.1f}\\% & \\textbf{{{m_xgb_full['rec']*100:.1f}\\%}} & \\textbf{{{m_xgb_full['f1']*100:.1f}\\%}} & {overhead_full:.1f}\\% \\\\\n" + \
-r"""\hline
-\end{tabular}
-\end{table}
-"""
-    with open(os.path.join(TABLE_DIR, "table_before_after_defense.tex"), "w") as f:
-        f.write(tex)
-    print(f"\n[OK] Exported {TABLE_DIR}/table_before_after_defense.tex")
+    print(f"{'Model':<18} | {'Stav / Režim obrany':<35} | {'Accuracy':<9} | {'Recall':<9} | {'Overhead':<8}")
+    print("-" * 85)
+    for model_name, orig, m1, m2 in [
+        ("1D-CNN", m_cnn_orig, m_cnn_m1, m_cnn_m2),
+        ("Flow-Transformer", m_tf_orig, m_tf_m1, m_tf_m2),
+        ("XGBoost", m_xgb_orig, m_xgb_m1, m_xgb_m2)
+    ]:
+        print(f"{model_name:<18} | {'1. Bez obrany (Původní WebTunnel)':<35} | {orig['accuracy']*100:>8.1f}% | {orig['recall']*100:>8.1f}% | {'0.0%':>8}")
+        print(f"{'':<18} | {'2. Lehký padding (1-128B)':<35} | {m1['accuracy']*100:>8.1f}% | {m1['recall']*100:>8.1f}% | {overhead_m1:>7.1f}%")
+        print(f"{'':<18} | {'3. Plný Cell Coalescing & Mimicry':<35} | {m2['accuracy']*100:>8.1f}% | {m2['recall']*100:>8.1f}% | {overhead_m2:>7.1f}%")
+        print("-" * 85)
 
-    # Plots
-    # 1. Multi-level bar chart
-    plt.figure(figsize=(11, 6))
-    models_list = ["1D-CNN", "Flow-Transformer", "XGBoost"]
-    r_bef = [m_cnn_bef['rec']*100, m_tf_bef['rec']*100, m_xgb_bef['rec']*100]
-    r_light = [m_cnn_light['rec']*100, m_tf_light['rec']*100, m_xgb_light['rec']*100]
-    r_full = [m_cnn_full['rec']*100, m_tf_full['rec']*100, m_xgb_full['rec']*100]
-    
-    x = np.arange(len(models_list))
-    width = 0.25
-    
-    plt.bar(x - width, r_bef, width, label='1. Bez obrany (Overhead 0%)', color='#d62728', alpha=0.85)
-    plt.bar(x, r_light, width, label=f'2. Adaptivní padding 1-128B (Overhead {overhead_light:.1f}%)', color='#ff7f0e', alpha=0.85)
-    plt.bar(x + width, r_full, width, label=f'3. Cell Coalescing & Cover Shaping (Overhead {overhead_full:.1f}%)', color='#2ca02c', alpha=0.85)
-    
-    plt.ylabel('Schopnost detekce cenzora / Recall (%)', fontsize=12, fontweight='bold')
-    plt.title('Účinnost obranných mechanismů v poměru k režii šířky pásma', fontsize=13, fontweight='bold')
-    plt.xticks(x, models_list, fontsize=11)
-    plt.ylim(0, 125)
-    plt.axhline(y=50, color='gray', linestyle='--', alpha=0.7, label='Náhodné hádání (50 %)')
-    
-    for i in range(len(models_list)):
-        plt.text(x[i] - width, r_bef[i] + 1.5, f"{r_bef[i]:.1f}%", ha='center', fontsize=9, fontweight='bold')
-        plt.text(x[i], r_light[i] + 1.5, f"{r_light[i]:.1f}%", ha='center', fontsize=9, fontweight='bold')
-        plt.text(x[i] + width, r_full[i] + 1.5, f"{r_full[i]:.1f}%", ha='center', fontsize=9, fontweight='bold')
-        
-    plt.legend(loc='upper left', fontsize=10)
+    # Export LaTeX Table
+    tex_path = os.path.join(LATEX_TABLES_DIR, "table_before_after_defense.tex")
+    with open(tex_path, "w", encoding="utf-8") as f:
+        f.write(r"\begin{table}[htbp]" + "\n")
+        f.write(r"\centering" + "\n")
+        f.write(r"\caption{Účinnost navržených protiopatření: Degradace detekčního Recallu a datová režie}" + "\n")
+        f.write(r"\label{tab:before_after_defense}" + "\n")
+        f.write(r"\begin{tabular}{llccc}" + "\n")
+        f.write(r"\hline" + "\n")
+        f.write(r"\textbf{Klasifikátor} & \textbf{Režim obrany} & \textbf{Accuracy} & \textbf{Recall (Úspěšnost cenzora)} & \textbf{Datová režie} \\" + "\n")
+        f.write(r"\hline" + "\n")
+        f.write(f"1D-CNN & 1. Bez obrany (WebTunnel baseline) & {m_cnn_orig['accuracy']*100:.1f}\\% & {m_cnn_orig['recall']*100:.1f}\\% & 0.0\\% \\\\\n")
+        f.write(f" & 2. Adaptivní Intra-frame Padding (1--128B) & {m_cnn_m1['accuracy']*100:.1f}\\% & {m_cnn_m1['recall']*100:.1f}\\% & {overhead_m1:.1f}\\% \\\\\n")
+        f.write(f" & 3. Cell Coalescing \\& Cover Shaping & {m_cnn_m2['accuracy']*100:.1f}\\% & {m_cnn_m2['recall']*100:.1f}\\% & {overhead_m2:.1f}\\% \\\\\n")
+        f.write(r"\hline" + "\n")
+        f.write(f"Transformer & 1. Bez obrany (WebTunnel baseline) & {m_tf_orig['accuracy']*100:.1f}\\% & {m_tf_orig['recall']*100:.1f}\\% & 0.0\\% \\\\\n")
+        f.write(f" & 2. Adaptivní Intra-frame Padding (1--128B) & {m_tf_m1['accuracy']*100:.1f}\\% & {m_tf_m1['recall']*100:.1f}\\% & {overhead_m1:.1f}\\% \\\\\n")
+        f.write(f" & 3. Cell Coalescing \\& Cover Shaping & {m_tf_m2['accuracy']*100:.1f}\\% & {m_tf_m2['recall']*100:.1f}\\% & {overhead_m2:.1f}\\% \\\\\n")
+        f.write(r"\hline" + "\n")
+        f.write(f"XGBoost & 1. Bez obrany (WebTunnel baseline) & {m_xgb_orig['accuracy']*100:.1f}\\% & {m_xgb_orig['recall']*100:.1f}\\% & 0.0\\% \\\\\n")
+        f.write(f" & 2. Adaptivní Intra-frame Padding (1--128B) & {m_xgb_m1['accuracy']*100:.1f}\\% & {m_xgb_m1['recall']*100:.1f}\\% & {overhead_m1:.1f}\\% \\\\\n")
+        f.write(f" & 3. Cell Coalescing \\& Cover Shaping & {m_xgb_m2['accuracy']*100:.1f}\\% & {m_xgb_m2['recall']*100:.1f}\\% & {overhead_m2:.1f}\\% \\\\\n")
+        f.write(r"\hline" + "\n")
+        f.write(r"\end{tabular}" + "\n")
+        f.write(r"\end{table}" + "\n")
+    print(f"\n[OK] Exported {tex_path}")
+
+    # Plot 1: Metrics comparison bar chart
+    fig, ax = plt.subplots(figsize=(10, 5))
+    labels = ["1D-CNN", "Flow-Transformer", "XGBoost"]
+    orig_rec = [m_cnn_orig['recall']*100, m_tf_orig['recall']*100, m_xgb_orig['recall']*100]
+    m1_rec = [m_cnn_m1['recall']*100, m_tf_m1['recall']*100, m_xgb_m1['recall']*100]
+    m2_rec = [m_cnn_m2['recall']*100, m_tf_m2['recall']*100, m_xgb_m2['recall']*100]
+
+    x = np.arange(len(labels))
+    w = 0.25
+    ax.bar(x - w, orig_rec, w, label="Před obranou (Původní WebTunnel)", color="#d62728", alpha=0.85)
+    ax.bar(x, m1_rec, w, label=f"Mód 1: Adaptivní Padding (+{overhead_m1:.1f}% režie)", color="#ff7f0e", alpha=0.85)
+    ax.bar(x + w, m2_rec, w, label=f"Mód 2: Cell Coalescing (+{overhead_m2:.1f}% režie)", color="#2ca02c", alpha=0.85)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("Detekční Recall cenzora (%)")
+    ax.set_title("Vliv protokolárních obran na úspěšnost detekce WebTunnelu")
+    ax.set_ylim(0, 115)
+    ax.legend(loc="upper right")
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "before_vs_after_metrics.png"), dpi=300)
+    plt.savefig(os.path.join(PLOTS_DIR, "before_vs_after_metrics.png"))
     plt.close()
-    
-    # 2. Saliency map
-    plt.figure(figsize=(12, 6))
-    pkts = np.arange(1, 41)
-    plt.plot(pkts, saliency_before[:40], marker='o', linewidth=2.5, color='#d62728', label='Bez obrany: Špička na paketech 1–15 (Circuit Handshake Burst)')
-    plt.plot(pkts, saliency_after[:40], marker='s', linewidth=2.5, color='#2ca02c', label='S obranou: Vyhlazený gradient (Maskování handshake)')
-    plt.title("Explainability (XAI): Gradient Saliency mapy 1D-CNN před a po aplikaci obrany", fontsize=13, fontweight="bold")
-    plt.xlabel("Index paketu v toku (Prvních 40 paketů)", fontsize=12)
-    plt.ylabel("Normalizovaná důležitost gradientu (Saliency)", fontsize=12)
-    plt.ylim(-0.05, 1.15)
-    plt.legend(fontsize=10)
+    print(f"[OK] Saved {os.path.join(PLOTS_DIR, 'before_vs_after_metrics.png')}")
+
+    # Plot 2: Spectral distribution shift
+    plt.figure(figsize=(11, 5))
+    wt_indices = np.where(y_test == 1)[0]
+    lens_orig = (np.abs(X_seq_test[wt_indices, :, 0]) * 1500.0).flatten()
+    lens_m1 = (np.abs(X_seq_m1[wt_indices, :, 0]) * 1500.0).flatten()
+    lens_m2 = (np.abs(X_seq_m2[wt_indices, :, 0]) * 1500.0).flatten()
+
+    lens_orig = lens_orig[lens_orig > 10]
+    lens_m1 = lens_m1[lens_m1 > 10]
+    lens_m2 = lens_m2[lens_m2 > 10]
+
+    sns.kdeplot(lens_orig, label="Původní WebTunnel (Kvantizace 558 B)", color="red", lw=2)
+    sns.kdeplot(lens_m1, label="Mód 1: Adaptivní Padding (1-128 B)", color="orange", lw=2)
+    sns.kdeplot(lens_m2, label="Mód 2: Cell Coalescing do MTU 1448 B", color="green", lw=2)
+
+    plt.axvline(x=558, color="darkred", linestyle="--", alpha=0.6, label="558 B Tor Cell")
+    plt.axvline(x=1448, color="darkgreen", linestyle=":", alpha=0.6, label="1448 B MTU Frame")
+    plt.xlim(0, 1600)
+    plt.xlabel("L7 Velikost paketu (Bytes)")
+    plt.ylabel("Hustota pravděpodobnosti")
+    plt.title("Změna distribuce délek paketů vlivem Cell Coalescingu a Paddingu")
+    plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "before_vs_after_saliency.png"), dpi=300)
+    plt.savefig(os.path.join(PLOTS_DIR, "before_vs_after_distributions.png"))
     plt.close()
-    
-    # 3. Spectral Distribution
-    plt.figure(figsize=(12, 6))
-    orig_lens = np.abs(X_test_seq[y_test == 1, :, 0]).flatten() * 1500.0
-    orig_lens = orig_lens[orig_lens > 10.0]
-    
-    light_lens = np.abs(X_def_light[y_test == 1, :, 0]).flatten() * 1500.0
-    light_lens = light_lens[light_lens > 10.0]
-    
-    full_lens = np.abs(X_def_full[y_test == 1, :, 0]).flatten() * 1500.0
-    full_lens = full_lens[full_lens > 10.0]
-    
-    sns.kdeplot(orig_lens, label="1. Bez obrany: Ostrá špička ~560B (1x Tor Cell + H2/TLS)", color="#d62728", bw_adjust=0.4, linewidth=2.5)
-    sns.kdeplot(light_lens, label="2. Adaptivní padding 1-128B: Částečný rozptyl", color="#ff7f0e", bw_adjust=0.4, linewidth=2.0)
-    sns.kdeplot(full_lens, label="3. Cell Coalescing & Mimicry: Kvantizace vyhlazena", color="#2ca02c", bw_adjust=0.4, linewidth=2.5)
-    
-    plt.axvline(x=560, color="gray", linestyle="--", alpha=0.6, label="1x Tor Cell L7 (~560B)")
-    plt.axvline(x=1074, color="purple", linestyle="--", alpha=0.6, label="2x Tor Cell L7 (~1074B)")
-    plt.title("Spektrální distribuce délek aplikačního L7 payloadu: Srovnání úrovní obran", fontsize=13, fontweight="bold")
-    plt.xlabel("Délka L7 payloadu (Bytes)", fontsize=12)
-    plt.ylabel("Hustota pravděpodobnosti", fontsize=12)
-    plt.xlim(0, 1550)
-    plt.legend(fontsize=10)
-    plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "before_vs_after_distributions.png"), dpi=300)
-    plt.close()
-    
-    print(f"[OK] Saved {PLOT_DIR}/before_vs_after_metrics.png")
-    print(f"[OK] Saved {PLOT_DIR}/before_vs_after_saliency.png")
-    print(f"[OK] Saved {PLOT_DIR}/before_vs_after_distributions.png")
+    print(f"[OK] Saved {os.path.join(PLOTS_DIR, 'before_vs_after_distributions.png')}")
+
 
 if __name__ == "__main__":
     main()

@@ -1,38 +1,13 @@
 {
-    "model_name": "XGBoost",
-    "training_time_sec": 0.27101755142211914,
-    "inference_latency_ms": 0.0007252693176269531,
-    "throughput_flows_sec": 1378798.1591058513,
-    "optimal_threshold": 0.8550860285758972,
-    "metrics": {
-        "accuracy": 0.996031746031746,
-        "precision": 0.9782608695652174,
-        "recall": 1.0,
-        "f1_score": 0.989010989010989,
-        "roc_auc": 0.9996779388083736,
-        "pr_auc": 0.9985180305470162
-    },
-    "low_fpr_calibration": {
-        "fpr_0.01": {
-            "threshold": 0.4351240396499634,
-            "precision": 0.9375,
-            "recall": 1.0,
-            "tp": 45,
-            "fp": 3
-        },
-        "fpr_0.001": {
-            "threshold": 0.9163089990615845,
-            "precision": 0.9777777777777777,
-            "recall": 0.9777777777777777,
-            "tp": 44,
-            "fp": 1
-        },
-        "fpr_0.0001": {
-            "threshold": 0.9404700398445129,
-            "precision": 0.9767441860465116,
-            "recall": 0.9333333333333333,
-            "tp": 42,
-            "fp": 1
-        }
-    }
+    "accuracy": 0.996031746031746,
+    "precision": 0.9782608695652174,
+    "recall": 1.0,
+    "f1_score": 0.989010989010989,
+    "roc_auc": 0.999892646269458,
+    "pr_auc": 0.9995115405260333,
+    "threshold": 0.873013973236084,
+    "latency_ms_per_flow": 0.0008269294444506245,
+    "throughput_flows_per_sec": 1209293.0137036734,
+    "training_time_sec": 0.16919469833374023,
+    "best_iteration": 139
 }

@@ -1,25 +1,13 @@
 {
-    "model": "1D-CNN",
-    "device": "cuda",
-    "train_time_sec": 4.254673719406128,
-    "inference_latency_ms": 0.11994314193725586,
-    "throughput_flows_sec": 8337.283681655726,
-    "metrics": {
-        "accuracy": 0.9880952380952381,
-        "precision": 0.9772727272727273,
-        "recall": 0.9555555555555556,
-        "f1": 0.9662921348314607,
-        "pr_auc": 0.9939592571818487,
-        "roc_auc": 0.9986044015029523
-    },
-    "confusion_matrix": [
-        [
-            206,
-            1
-        ],
-        [
-            2,
-            43
-        ]
-    ]
+    "accuracy": 0.9761904761904762,
+    "precision": 0.8979591836734694,
+    "recall": 0.9777777777777777,
+    "f1_score": 0.9361702127659575,
+    "roc_auc": 0.999141170155663,
+    "pr_auc": 0.9962217918253358,
+    "threshold": 0.5,
+    "latency_ms_per_flow": 0.0028956163490846173,
+    "throughput_flows_per_sec": 345349.6179893193,
+    "training_time_sec": 3.103503704071045,
+    "best_val_loss": 0.001639029572230219
 }

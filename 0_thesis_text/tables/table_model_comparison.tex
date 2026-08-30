@@ -1,14 +1,14 @@
 \begin{table}[htbp]
 \centering
-\caption{Srovnání klasifikačních modelů pro detekci WebTunnelu vůči Hard Negatives}
+\caption{Srovnání klasifikačních modelů pro detekci WebTunnelu vůči Hard Negatives (5-Fold CV)}
 \label{tab:model_comparison}
 \begin{tabular}{lcccccc}
 \hline
 \textbf{Model} & \textbf{Hardware} & \textbf{Accuracy} & \textbf{PR-AUC} & \textbf{ROC-AUC} & \textbf{Latence/flow} & \textbf{Propustnost} \\
 \hline
-XGBoost (Baseline) & Ryzen 9800X3D & $99.5 \pm 0.4\%$ & $0.999 \pm 0.001$ & $1.000 \pm 0.000$ & 0.0007 ms & 1,378,798 flows/s \\
-1D-CNN (Deep Packet) & RTX 5070 Ti & $98.4 \pm 0.8\%$ & $0.992 \pm 0.009$ & $0.999 \pm 0.001$ & 0.1199 ms & 8,337 flows/s \\
-Flow-Transformer & RTX 5070 Ti & $98.3 \pm 0.9\%$ & $0.982 \pm 0.019$ & $0.994 \pm 0.008$ & 0.1791 ms & 5,584 flows/s \\
+XGBoost (Baseline) & AMD Ryzen 9800X3D & $99.5 \pm 0.1\%$ & $0.999 \pm 0.001$ & $1.000 \pm 0.000$ & 0.0008~ms & 1,209,293~toků/s \\
+1D-CNN (Deep Packet) & NVIDIA RTX 5070 Ti & $98.8 \pm 0.6\%$ & $0.998 \pm 0.002$ & $1.000 \pm 0.001$ & 0.0029~ms & 345,350~toků/s \\
+Flow-Transformer & NVIDIA RTX 5070 Ti & $98.4 \pm 0.7\%$ & $0.993 \pm 0.007$ & $0.997 \pm 0.005$ & 0.0214~ms & 46,634~toků/s \\
 \hline
 \end{tabular}
 \end{table}

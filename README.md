@@ -49,6 +49,9 @@ We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
 ## 🏗️ Repository Architecture
 
 ```text
+├── common/                        # Central shared configuration & utilities
+│   ├── __init__.py
+│   └── config.py                  # Paths, classes, profiles, seeds, Matplotlib styles
 ├── 0_thesis_text/                 # LaTeX tables and upcoming thesis chapters
 │   └── tables/                    # Auto-generated LaTeX tables (\input ready)
 ├── 1_testbed/                     # Isolated Dockerized testbed
@@ -63,21 +66,23 @@ We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
 │   ├── build_dataset.py           # Parallel dataset builder (Train/Val/Test)
 │   └── inspect_dataset.py         # Spectral and IAT distribution analyzer
 ├── 3_models/                      # Machine Learning and Deep Learning models
+│   ├── architectures.py           # PyTorch WebTunnel1DCNN & WebTunnelTransformer definitions
+│   ├── utils.py                   # Data loaders, focal loss, metric helpers
 │   ├── train_xgboost.py           # XGBoost classifier + dynamic scale_pos_weight
 │   ├── train_1d_cnn.py            # PyTorch 1D-CNN (CUDA) with Focal Loss
 │   ├── train_transformer.py       # PyTorch Flow-Transformer (CUDA)
 │   ├── cross_validate.py          # 5-Fold Stratified Group CV with Early Stopping
 │   └── explain_models.py          # XAI: SHAP Beeswarm Summary & Gradient Saliency
 ├── 4_evaluation/                  # Experimental evaluation & figures
-│   ├── evaluate_cascaded_pipeline.py    # 2-Tier L1 CPU -> L2 GPU cascaded benchmark
-│   ├── evaluate_det_curve.py            # Logarithmic DET curve (Low-FPR regime)
-│   ├── evaluate_confusion_matrix.py     # Multi-class confusion matrix breakdown
-│   ├── evaluate_cross_profile.py        # Cross-profile domain generalization
+│   ├── evaluate_cascaded_pipeline.py     # 2-Tier L1 CPU -> L2 GPU cascaded benchmark
+│   ├── evaluate_det_curve.py             # Logarithmic DET curve (Low-FPR regime)
+│   ├── evaluate_confusion_matrix.py      # Multi-class confusion matrix breakdown
+│   ├── evaluate_cross_profile.py         # Cross-profile domain generalization
 │   ├── evaluate_before_after_defenses.py # Multi-level defense benchmark
-│   ├── evaluate_post_handshake.py       # Pre- vs post-handshake evaluation
-│   ├── evaluate_base_rate_fallacy.py    # Base rate fallacy & Bayes aggregation
-│   ├── export_latex_tables.py           # Generates all .tex tables for the thesis
-│   └── plots/                           # High-resolution (300 DPI) publication figures
+│   ├── evaluate_post_handshake.py        # Pre- vs post-handshake evaluation
+│   ├── evaluate_base_rate_fallacy.py     # Base rate fallacy & Bayes aggregation
+│   ├── export_latex_tables.py            # Generates all .tex tables for the thesis
+│   └── plots/                            # High-resolution (300 DPI) publication figures
 ├── requirements.txt               # Pinned Python package dependencies
 └── run_full_benchmark.py          # Master orchestrator executing entire pipeline
 ```

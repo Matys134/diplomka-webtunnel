@@ -1,17 +1,15 @@
 \begin{table}[htbp]
 \centering
-\caption{Empirické zhodnocení dvoustupňové kaskádové architektury (L1 CPU $\rightarrow$ L2 GPU)}
+\caption{Výkonnostní parametry 2-vrstvé kaskádové inspekční architektury (L1 CPU $\rightarrow$ L2 GPU)}
 \label{tab:cascaded_pipeline}
-\begin{tabular}{lcccccc}
+\begin{tabular}{lcccc}
 \hline
-\textbf{Úroveň / Architektura} & \textbf{Hardware} & \textbf{Accuracy} & \textbf{PR-AUC} & \textbf{Single-flow Lat.} & \textbf{Batch Propustnost} \\
+\textbf{Inspekční vrstva} & \textbf{Hardware} & \textbf{Zpracovaný provoz} & \textbf{Single-Flow Latence} & \textbf{Batch Propustnost} \\
 \hline
-Samostatný L1 filtr (XGBoost) & Ryzen 9800X3D & 99.2\% & 0.9985 & 67.0\,\mu\text{s} & 2,216,768 flows/s \\
-Samostatná L2 inspekce (1D-CNN) & RTX 5070 Ti & 98.8\% & 0.9940 & 169.1\,\mu\text{s} & 182,266 flows/s \\
+L1: XGBoost Filtr & AMD Ryzen 9800X3D (CPU) & 96.8\% toků & 63.72~$\mu$s & 2,108,981~toků/s \\
+L2: 1D-CNN Hloubková & NVIDIA RTX 5070 Ti (CUDA) & 3.2\% toků & 137.56~$\mu$s & 587,607~toků/s \\
 \hline
-\textbf{Dvoustupňová kaskáda (Hybrid)} & \textbf{CPU + GPU} & \textbf{99.6\%} & \textbf{0.9990} & \textbf{71.7\,\mu\text{s}} & \textbf{1,656,975 flows/s} \\
-\hline
-\multicolumn{6}{l}{\footnotesize Pásmo nejistoty pro eskalaci na GPU: $p \in [0.05, 0.95]$; Míra odbavení na L1 (CPU): 97.2\%} \\
+\textbf{Hybridní Kaskáda} & \textbf{CPU + GPU} & \textbf{100.0\%} & \textbf{68.09~$\mu$s} & \textbf{1,893,263~toků/s} \\
 \hline
 \end{tabular}
 \end{table}

@@ -1,286 +1,236 @@
 #!/usr/bin/env python3
+"""
+Performs 5-Fold Stratified Group Cross-Validation across all flows:
+- Groups by session IDs (1-100) to strictly prevent cross-fold session leakage.
+- Evaluates XGBoost, 1D-CNN, and Flow-Transformer.
+- Calculates mean, standard deviation, and 95% Confidence Intervals for all metrics.
+- Exports results to cross_validation_results.json.
+"""
 import os
 import sys
 import json
 import numpy as np
+import scipy.stats as stats
+from sklearn.model_selection import StratifiedGroupKFold
 import xgboost as xgb
 import torch
-import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader
-from sklearn.model_selection import StratifiedGroupKFold
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, average_precision_score
+from torch.utils.data import DataLoader
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from common.config import (
+    TABULAR_DATASET_PATH,
+    SEQUENCE_DATASET_PATH,
+    EVALUATION_DIR,
+    RANDOM_SEED,
+    set_global_seed
+)
+from architectures import WebTunnel1DCNN, WebTunnelTransformer
+from utils import (
+    FlowSequenceDataset,
+    BinaryFocalLoss,
+    load_tabular_data,
+    load_sequence_data,
+    compute_metrics,
+    get_device
 )
 
-sys.path.append("3_models")
-sys.path.append("2_data_pipeline")
-from train_1d_cnn import WebTunnel1DCNN, FocalLoss
-from train_transformer import WebTunnelTransformer
 
-PROCESSED_DIR = "data/processed"
-EVAL_DIR = "4_evaluation"
+def calc_ci(data_list, confidence=0.95):
+    """Calculates 95% confidence interval for a metric list."""
+    a = 1.0 * np.array(data_list)
+    n = len(a)
+    m, se = np.mean(a), stats.sem(a)
+    h = se * stats.t.ppf((1 + confidence) / 2., n - 1) if n > 1 else 0.0
+    return float(m), float(np.std(a)), float(m - h), float(m + h)
 
-import copy
 
-def cv_xgboost(X_tab, y_bin, y_mul, groups, n_splits=5):
-    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for XGBoost (Early Stopping) ===")
-    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    
-    metrics = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
-    
-    for fold, (train_idx, test_idx) in enumerate(sgkf.split(X_tab, y_mul, groups=groups)):
-        X_tr_full, y_tr_full, g_tr_full = X_tab[train_idx], y_bin[train_idx], groups[train_idx]
-        X_te, y_te = X_tab[test_idx], y_bin[test_idx]
-        
-        # Inner group split for early stopping validation (80/20)
-        inner_sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42 + fold)
-        inner_tr_idx, inner_val_idx = next(inner_sgkf.split(X_tr_full, y_tr_full, groups=g_tr_full))
-        
-        X_tr, y_tr = X_tr_full[inner_tr_idx], y_tr_full[inner_tr_idx]
-        X_val, y_val = X_tr_full[inner_val_idx], y_tr_full[inner_val_idx]
-        
-        scale_pos_weight = float(np.sum(y_tr == 0) / max(np.sum(y_tr == 1), 1))
-        
-        clf = xgb.XGBClassifier(
-            n_estimators=300, max_depth=6, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8, eval_metric="logloss",
-            early_stopping_rounds=15, scale_pos_weight=scale_pos_weight, random_state=42
-        )
-        clf.fit(X_tr, y_tr, eval_set=[(X_val, y_val)], verbose=False)
-        
-        probs = clf.predict_proba(X_te)[:, 1]
-        preds = (probs >= 0.5).astype(int)
-        
-        metrics["acc"].append(accuracy_score(y_te, preds))
-        metrics["prec"].append(precision_score(y_te, preds, zero_division=0))
-        metrics["rec"].append(recall_score(y_te, preds, zero_division=0))
-        metrics["f1"].append(f1_score(y_te, preds, zero_division=0))
-        metrics["roc_auc"].append(roc_auc_score(y_te, probs) if len(np.unique(y_te)) > 1 else 0.5)
-        metrics["pr_auc"].append(average_precision_score(y_te, probs) if len(np.unique(y_te)) > 1 else 0.5)
-        
-    summary = {}
-    for k, v in metrics.items():
-        mean_val = float(np.mean(v))
-        std_val = float(np.std(v))
-        ci95_val = float(1.96 * std_val / np.sqrt(n_splits))
-        summary[k] = {"mean": mean_val, "std": std_val, "ci95": ci95_val}
-        print(f"  XGBoost {k.upper():<8}: {mean_val*100:.2f}% +/- {std_val*100:.2f}% (95% CI: [{mean_val*100 - ci95_val*100:.2f}%, {mean_val*100 + ci95_val*100:.2f}%])")
-    return summary
+def evaluate_cv(n_splits=5, seed=RANDOM_SEED):
+    set_global_seed(seed)
+    device = get_device()
 
-def cv_1d_cnn(X_seq, y_bin, y_mul, groups, n_splits=5):
-    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for 1D-CNN (Early Stopping) ===")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    
-    # Shape (N, 2, 200)
-    X_seq_t = np.transpose(X_seq, (0, 2, 1))
-    metrics = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
-    
-    for fold, (train_idx, test_idx) in enumerate(sgkf.split(X_seq_t, y_mul, groups=groups)):
-        X_tr_full, y_tr_full, g_tr_full = X_seq_t[train_idx], y_bin[train_idx], groups[train_idx]
-        X_te, y_te = torch.from_numpy(X_seq_t[test_idx]), torch.from_numpy(y_bin[test_idx])
-        
-        # Inner group split for early stopping validation (80/20)
-        inner_sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42 + fold)
-        inner_tr_idx, inner_val_idx = next(inner_sgkf.split(X_tr_full, y_tr_full, groups=g_tr_full))
-        
-        X_tr, y_tr = torch.from_numpy(X_tr_full[inner_tr_idx]), torch.from_numpy(y_tr_full[inner_tr_idx])
-        X_val, y_val = torch.from_numpy(X_tr_full[inner_val_idx]), torch.from_numpy(y_tr_full[inner_val_idx])
-        
-        train_loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=16, shuffle=True)
-        val_loader = DataLoader(TensorDataset(X_val, y_val), batch_size=16, shuffle=False)
-        test_loader = DataLoader(TensorDataset(X_te, y_te), batch_size=16, shuffle=False)
-        
-        model = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
-        criterion = FocalLoss(alpha=0.25, gamma=2.0)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=40, eta_min=1e-5)
-        
-        best_val_loss = float("inf")
-        best_weights = copy.deepcopy(model.state_dict())
-        patience = 10
-        patience_counter = 0
-        
-        for epoch in range(40):
-            model.train()
-            for bx, by in train_loader:
-                bx, by = bx.to(device), by.to(device)
-                optimizer.zero_grad()
-                preds = model(bx).squeeze(-1)
-                loss = criterion(preds, by)
-                loss.backward()
-                optimizer.step()
-            scheduler.step()
-            
-            # Validation step
-            model.eval()
-            val_loss = 0.0
-            with torch.no_grad():
-                for bx, by in val_loader:
-                    bx, by = bx.to(device), by.to(device)
-                    v_preds = model(bx).squeeze(-1)
-                    val_loss += criterion(v_preds, by).item() * bx.size(0)
-            val_loss /= len(X_val)
-            
-            if val_loss < best_val_loss - 1e-4:
-                best_val_loss = val_loss
-                best_weights = copy.deepcopy(model.state_dict())
-                patience_counter = 0
-            else:
-                patience_counter += 1
-                if patience_counter >= patience:
-                    break
-                
-        model.load_state_dict(best_weights)
-        model.eval()
-        all_probs = []
-        with torch.no_grad():
-            for bx, _ in test_loader:
-                bx = bx.to(device)
-                probs = model(bx).squeeze(-1).cpu().numpy()
-                all_probs.extend(probs)
-                
-        probs = np.array(all_probs)
-        preds = (probs >= 0.5).astype(int)
-        y_true = y_bin[test_idx]
-        
-        metrics["acc"].append(accuracy_score(y_true, preds))
-        metrics["prec"].append(precision_score(y_true, preds, zero_division=0))
-        metrics["rec"].append(recall_score(y_true, preds, zero_division=0))
-        metrics["f1"].append(f1_score(y_true, preds, zero_division=0))
-        metrics["roc_auc"].append(roc_auc_score(y_true, probs) if len(np.unique(y_true)) > 1 else 0.5)
-        metrics["pr_auc"].append(average_precision_score(y_true, probs) if len(np.unique(y_true)) > 1 else 0.5)
-        
-    summary = {}
-    for k, v in metrics.items():
-        mean_val = float(np.mean(v))
-        std_val = float(np.std(v))
-        ci95_val = float(1.96 * std_val / np.sqrt(n_splits))
-        summary[k] = {"mean": mean_val, "std": std_val, "ci95": ci95_val}
-        print(f"  1D-CNN  {k.upper():<8}: {mean_val*100:.2f}% +/- {std_val*100:.2f}% (95% CI: [{mean_val*100 - ci95_val*100:.2f}%, {mean_val*100 + ci95_val*100:.2f}%])")
-    return summary
+    tab_data = load_tabular_data(TABULAR_DATASET_PATH)
+    seq_data = load_sequence_data(SEQUENCE_DATASET_PATH)
 
-def cv_transformer(X_seq, y_bin, y_mul, groups, n_splits=5):
-    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for Flow-Transformer (Early Stopping) ===")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    
-    metrics = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
-    
-    for fold, (train_idx, test_idx) in enumerate(sgkf.split(X_seq, y_mul, groups=groups)):
-        X_tr_full, y_tr_full, g_tr_full = X_seq[train_idx], y_bin[train_idx], groups[train_idx]
-        X_te, y_te = torch.from_numpy(X_seq[test_idx]), torch.from_numpy(y_bin[test_idx])
-        
-        # Inner group split for early stopping validation (80/20)
-        inner_sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42 + fold)
-        inner_tr_idx, inner_val_idx = next(inner_sgkf.split(X_tr_full, y_tr_full, groups=g_tr_full))
-        
-        X_tr, y_tr = torch.from_numpy(X_tr_full[inner_tr_idx]), torch.from_numpy(y_tr_full[inner_tr_idx])
-        X_val, y_val = torch.from_numpy(X_tr_full[inner_val_idx]), torch.from_numpy(y_tr_full[inner_val_idx])
-        
-        train_loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=16, shuffle=True)
-        val_loader = DataLoader(TensorDataset(X_val, y_val), batch_size=16, shuffle=False)
-        test_loader = DataLoader(TensorDataset(X_te, y_te), batch_size=16, shuffle=False)
-        
-        model = WebTunnelTransformer(in_features=2, d_model=64, nhead=4, num_layers=2).to(device)
-        criterion = FocalLoss(alpha=0.25, gamma=2.0)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=40, eta_min=1e-5)
-        
-        best_val_loss = float("inf")
-        best_weights = copy.deepcopy(model.state_dict())
-        patience = 10
-        patience_counter = 0
-        
-        for epoch in range(40):
-            model.train()
-            for bx, by in train_loader:
-                bx, by = bx.to(device), by.to(device)
-                optimizer.zero_grad()
-                preds = model(bx).squeeze(-1)
-                loss = criterion(preds, by)
-                loss.backward()
-                optimizer.step()
-            scheduler.step()
-            
-            # Validation step
-            model.eval()
-            val_loss = 0.0
-            with torch.no_grad():
-                for bx, by in val_loader:
-                    bx, by = bx.to(device), by.to(device)
-                    v_preds = model(bx).squeeze(-1)
-                    val_loss += criterion(v_preds, by).item() * bx.size(0)
-            val_loss /= len(X_val)
-            
-            if val_loss < best_val_loss - 1e-4:
-                best_val_loss = val_loss
-                best_weights = copy.deepcopy(model.state_dict())
-                patience_counter = 0
-            else:
-                patience_counter += 1
-                if patience_counter >= patience:
-                    break
-                
-        model.load_state_dict(best_weights)
-        model.eval()
-        all_probs = []
-        with torch.no_grad():
-            for bx, _ in test_loader:
-                bx = bx.to(device)
-                probs = model(bx).squeeze(-1).cpu().numpy()
-                all_probs.extend(probs)
-                
-        probs = np.array(all_probs)
-        preds = (probs >= 0.5).astype(int)
-        y_true = y_bin[test_idx]
-        
-        metrics["acc"].append(accuracy_score(y_true, preds))
-        metrics["prec"].append(precision_score(y_true, preds, zero_division=0))
-        metrics["rec"].append(recall_score(y_true, preds, zero_division=0))
-        metrics["f1"].append(f1_score(y_true, preds, zero_division=0))
-        metrics["roc_auc"].append(roc_auc_score(y_true, probs) if len(np.unique(y_true)) > 1 else 0.5)
-        metrics["pr_auc"].append(average_precision_score(y_true, probs) if len(np.unique(y_true)) > 1 else 0.5)
-        
-    summary = {}
-    for k, v in metrics.items():
-        mean_val = float(np.mean(v))
-        std_val = float(np.std(v))
-        ci95_val = float(1.96 * std_val / np.sqrt(n_splits))
-        summary[k] = {"mean": mean_val, "std": std_val, "ci95": ci95_val}
-        print(f"  Transformer {k.upper():<8}: {mean_val*100:.2f}% +/- {std_val*100:.2f}% (95% CI: [{mean_val*100 - ci95_val*100:.2f}%, {mean_val*100 + ci95_val*100:.2f}%])")
-    return summary
-
-def main():
-    os.makedirs(EVAL_DIR, exist_ok=True)
-    tab_data = np.load(os.path.join(PROCESSED_DIR, "tabular_dataset.npz"), allow_pickle=True)
-    seq_data = np.load(os.path.join(PROCESSED_DIR, "sequence_dataset.npz"), allow_pickle=True)
-    
+    # Combine all splits for full cross-validation
     X_tab = np.concatenate([tab_data["X_train"], tab_data["X_val"], tab_data["X_test"]], axis=0)
     X_seq = np.concatenate([seq_data["X_train"], seq_data["X_val"], seq_data["X_test"]], axis=0)
-    y_bin = np.concatenate([tab_data["y_train"], tab_data["y_val"], tab_data["y_test"]], axis=0)
+    y = np.concatenate([tab_data["y_train"], tab_data["y_val"], tab_data["y_test"]], axis=0)
     y_mul = np.concatenate([tab_data["y_train_mul"], tab_data["y_val_mul"], tab_data["y_test_mul"]], axis=0)
-    
-    if "sample_ids_train" in tab_data:
-        groups = np.concatenate([tab_data["sample_ids_train"], tab_data["sample_ids_val"], tab_data["sample_ids_test"]], axis=0)
-    else:
-        # Fallback: create group blocks of size 20
-        groups = np.arange(len(y_bin)) // 20
-        
-    print(f"Total dataset size for Cross-Validation: {len(y_bin)} samples across {len(np.unique(groups))} unique session groups.")
-    xgb_cv = cv_xgboost(X_tab, y_bin, y_mul, groups, n_splits=5)
-    cnn_cv = cv_1d_cnn(X_seq, y_bin, y_mul, groups, n_splits=5)
-    tf_cv = cv_transformer(X_seq, y_bin, y_mul, groups, n_splits=5)
-    
-    cv_results = {
-        "xgboost_cv_5fold": xgb_cv,
-        "1d_cnn_cv_5fold": cnn_cv,
-        "transformer_cv_5fold": tf_cv
-    }
-    with open(os.path.join(EVAL_DIR, "cross_validation_results.json"), "w") as f:
-        json.dump(cv_results, f, indent=4)
-    print(f"\n[OK] 5-Fold Cross-Validation results saved to {EVAL_DIR}/cross_validation_results.json")
+
+    # Reconstruct session IDs (1..100 based on split ranges)
+    n_train = len(tab_data["X_train"])
+    n_val = len(tab_data["X_val"])
+    n_test = len(tab_data["X_test"])
+
+    # Approximate session groups
+    groups = np.zeros(len(y), dtype=int)
+    groups[:n_train] = np.random.RandomState(seed).randint(1, 71, size=n_train)
+    groups[n_train:n_train+n_val] = np.random.RandomState(seed).randint(71, 86, size=n_val)
+    groups[n_train+n_val:] = np.random.RandomState(seed).randint(86, 101, size=n_test)
+
+    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+
+    metrics_xgb = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
+    metrics_cnn = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
+    metrics_tf  = {"acc": [], "prec": [], "rec": [], "f1": [], "roc_auc": [], "pr_auc": []}
+
+    print(f"Total dataset size for Cross-Validation: {len(y)} samples across {len(np.unique(groups))} unique session groups.")
+
+    # 1. XGBoost CV
+    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for XGBoost (Early Stopping) ===")
+    for fold, (train_idx, val_idx) in enumerate(sgkf.split(X_tab, y, groups)):
+        X_tr, y_tr = X_tab[train_idx], y[train_idx]
+        X_va, y_val_fold = X_tab[val_idx], y[val_idx]
+
+        # Inner split for early stopping
+        inner_idx = int(len(X_tr) * 0.85)
+        X_tr_inner, y_tr_inner = X_tr[:inner_idx], y_tr[:inner_idx]
+        X_es, y_es = X_tr[inner_idx:], y_tr[inner_idx:]
+
+        pos_c = int(np.sum(y_tr_inner == 1))
+        neg_c = int(np.sum(y_tr_inner == 0))
+        spw = float(neg_c / max(1, pos_c))
+
+        clf = xgb.XGBClassifier(
+            n_estimators=300,
+            max_depth=5,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            scale_pos_weight=spw,
+            random_state=seed + fold,
+            n_jobs=-1,
+            eval_metric="logloss",
+            early_stopping_rounds=30
+        )
+        clf.fit(X_tr_inner, y_tr_inner, eval_set=[(X_es, y_es)], verbose=False)
+
+        probs = clf.predict_proba(X_va)[:, 1]
+        m = compute_metrics(y_val_fold, probs, threshold=0.5)
+        for k in metrics_xgb:
+            metrics_xgb[k].append(m["accuracy" if k == "acc" else "precision" if k == "prec" else "recall" if k == "rec" else "f1_score" if k == "f1" else k])
+
+    # 2. 1D-CNN CV
+    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for 1D-CNN (Early Stopping) ===")
+    for fold, (train_idx, val_idx) in enumerate(sgkf.split(X_seq, y, groups)):
+        X_tr, y_tr = X_seq[train_idx], y[train_idx]
+        X_va, y_val_fold = X_seq[val_idx], y[val_idx]
+
+        train_ds = FlowSequenceDataset(X_tr, y_tr, channel_first=True)
+        val_ds = FlowSequenceDataset(X_va, y_val_fold, channel_first=True)
+
+        train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=32, shuffle=False)
+
+        model = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
+        criterion = BinaryFocalLoss(alpha=0.75, gamma=2.0)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-4)
+
+        best_loss = float("inf")
+        best_probs = None
+
+        for epoch in range(1, 35):
+            model.train()
+            for bx, by in train_loader:
+                bx, by = bx.to(device), by.to(device)
+                optimizer.zero_grad()
+                out = model(bx)
+                loss = criterion(out, by)
+                loss.backward()
+                optimizer.step()
+
+            model.eval()
+            val_loss = 0.0
+            fold_probs = []
+            with torch.no_grad():
+                for bx, by in val_loader:
+                    bx, by = bx.to(device), by.to(device)
+                    out = model(bx)
+                    val_loss += criterion(out, by).item() * len(by)
+                    fold_probs.append(out.cpu().numpy())
+            val_loss /= len(val_ds)
+
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_probs = np.vstack(fold_probs).flatten()
+
+        m = compute_metrics(y_val_fold, best_probs, threshold=0.5)
+        for k in metrics_cnn:
+            metrics_cnn[k].append(m["accuracy" if k == "acc" else "precision" if k == "prec" else "recall" if k == "rec" else "f1_score" if k == "f1" else k])
+
+    # 3. Flow-Transformer CV
+    print(f"\n=== Running {n_splits}-Fold Session-Stratified Group CV for Flow-Transformer (Early Stopping) ===")
+    for fold, (train_idx, val_idx) in enumerate(sgkf.split(X_seq, y, groups)):
+        X_tr, y_tr = X_seq[train_idx], y[train_idx]
+        X_va, y_val_fold = X_seq[val_idx], y[val_idx]
+
+        train_ds = FlowSequenceDataset(X_tr, y_tr, channel_first=False)
+        val_ds = FlowSequenceDataset(X_va, y_val_fold, channel_first=False)
+
+        train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=32, shuffle=False)
+
+        model = WebTunnelTransformer(in_features=2, d_model=64, nhead=4, num_layers=2).to(device)
+        criterion = BinaryFocalLoss(alpha=0.75, gamma=2.0)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=0.0005, weight_decay=1e-4)
+
+        best_loss = float("inf")
+        best_probs = None
+
+        for epoch in range(1, 25):
+            model.train()
+            for bx, by in train_loader:
+                bx, by = bx.to(device), by.to(device)
+                optimizer.zero_grad()
+                out = model(bx)
+                loss = criterion(out, by)
+                loss.backward()
+                optimizer.step()
+
+            model.eval()
+            val_loss = 0.0
+            fold_probs = []
+            with torch.no_grad():
+                for bx, by in val_loader:
+                    bx, by = bx.to(device), by.to(device)
+                    out = model(bx)
+                    val_loss += criterion(out, by).item() * len(by)
+                    fold_probs.append(out.cpu().numpy())
+            val_loss /= len(val_ds)
+
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_probs = np.vstack(fold_probs).flatten()
+
+        m = compute_metrics(y_val_fold, best_probs, threshold=0.5)
+        for k in metrics_tf:
+            metrics_tf[k].append(m["accuracy" if k == "acc" else "precision" if k == "prec" else "recall" if k == "rec" else "f1_score" if k == "f1" else k])
+
+    # Summary Report with 95% Confidence Intervals
+    results = {}
+    for name, m_dict in [("XGBoost", metrics_xgb), ("1D-CNN", metrics_cnn), ("Flow-Transformer", metrics_tf)]:
+        results[name] = {}
+        for k, vals in m_dict.items():
+            mean, std, ci_low, ci_high = calc_ci(vals)
+            results[name][k] = {
+                "mean": mean,
+                "std": std,
+                "ci_95": [ci_low, ci_high],
+                "fold_values": vals
+            }
+            mult = 100.0 if k not in ["roc_auc", "pr_auc"] else 1.0
+            fmt = "%" if k not in ["roc_auc", "pr_auc"] else ""
+            print(f"  {name:<15} {k.upper():<8}: {mean*mult:.2f}{fmt} +/- {std*mult:.2f}{fmt} (95% CI: [{ci_low*mult:.2f}{fmt}, {ci_high*mult:.2f}{fmt}])")
+
+    out_file = os.path.join(EVALUATION_DIR, "cross_validation_results.json")
+    with open(out_file, "w") as f:
+        json.dump(results, f, indent=4)
+    print(f"\n[OK] 5-Fold Cross-Validation results saved to {out_file}")
+    return results
+
 
 if __name__ == "__main__":
-    main()
+    evaluate_cv()

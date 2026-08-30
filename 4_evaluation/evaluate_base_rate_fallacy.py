@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
+"""
+Base Rate Fallacy & ISP Line-Rate Operational Feasibility Benchmark:
+1. Base Rate Fallacy simulation across network core/edge prevalences (alpha = 10^-6 to 10^-1).
+2. Host-Based Bayesian Multi-Flow Aggregation (Jansen et al. NDSS 2024 modeling).
+3. Computational Line-Rate Inspection Throughput & Latency Benchmark.
+"""
 import os
+import sys
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
-EVAL_DIR = "4_evaluation"
-PLOT_DIR = "4_evaluation/plots"
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from common.config import EVALUATION_DIR, PLOTS_DIR, setup_matplotlib_style
+
 
 def bayes_precision(tpr, fpr, alpha):
     """Computes Bayesian Precision P(WebTunnel | Alarm) given base rate alpha."""
@@ -16,31 +26,29 @@ def bayes_precision(tpr, fpr, alpha):
         return 0.0
     return numerator / denominator
 
+
 def main():
-    os.makedirs(PLOT_DIR, exist_ok=True)
-    sns.set_theme(style="whitegrid")
-    
-    # Load model test predictions & metrics
+    setup_matplotlib_style()
+
     models = ["xgboost", "1d_cnn", "transformer"]
     model_labels = {
         "xgboost": "XGBoost (Ryzen 9800X3D)",
         "1d_cnn": "1D-CNN (RTX 5070 Ti)",
         "transformer": "Flow-Transformer (RTX 5070 Ti)"
     }
-    
+
     results = {}
     for m in models:
-        res_file = os.path.join(EVAL_DIR, f"{m}_results.json")
+        res_file = os.path.join(EVALUATION_DIR, f"{m}_results.json")
         if os.path.exists(res_file):
             with open(res_file) as f:
                 results[m] = json.load(f)
-                
+
     # 1. Base Rate Fallacy: FDR vs Alpha Curve
-    alphas = np.logspace(-6, -1, 200) # from 10^-6 (core) to 10^-1 (edge)
+    alphas = np.logspace(-6, -1, 200)
     fpr_scenarios = [1e-2, 1e-3, 1e-4, 1e-5]
-    # Dynamically extract TPR from evaluated models (defaults to 0.99 if not yet cached)
-    tpr = results.get("xgboost", {}).get("metrics", {}).get("recall", 0.99)
-    
+    tpr = results.get("xgboost", {}).get("recall", 0.99)
+
     plt.figure(figsize=(10, 6))
     for fpr in fpr_scenarios:
         fdrs = []
@@ -48,107 +56,73 @@ def main():
             prec = bayes_precision(tpr, fpr, a)
             fdr = (1.0 - prec) * 100.0
             fdrs.append(fdr)
-        plt.plot(alphas, fdrs, label=f"Classifier FPR = {fpr:.0e}", linewidth=2.5)
-        
+        plt.plot(alphas, fdrs, label=f"Klasifikátor FPR = {fpr:.0e}", linewidth=2.5)
+
     plt.xscale("log")
-    plt.axvline(x=1e-4, color="black", linestyle="--", alpha=0.7, label="ISP Edge Node (alpha=10^-4)")
-    plt.axvline(x=1e-6, color="red", linestyle=":", alpha=0.7, label="Tier-1 Backbone (alpha=10^-6)")
-    plt.title("Base Rate Fallacy: False Discovery Rate (FDR) vs WebTunnel Prevalence (alpha)", fontsize=13, fontweight="bold")
-    plt.xlabel("WebTunnel Prevalence in Network (alpha)", fontsize=12)
-    plt.ylabel("False Discovery Rate (FDR %)", fontsize=12)
+    plt.axvline(x=1e-4, color="black", linestyle="--", alpha=0.7, label=r"ISP Edge Node ($\alpha=10^{-4}$)")
+    plt.axvline(x=1e-6, color="red", linestyle=":", alpha=0.7, label=r"Páteřní Tier-1 síť ($\alpha=10^{-6}$)")
+    plt.title("Base Rate Fallacy: Míra falešných poplachů (FDR) vs. Prevalence WebTunnelu v síti")
+    plt.xlabel(r"Prevalence WebTunnelu v síťovém provozu ($\alpha$)")
+    plt.ylabel("Míra falešně obviněných spojení (FDR %)")
     plt.ylim(-5, 105)
-    plt.legend(fontsize=10)
+    plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "base_rate_fallacy_fdr.png"), dpi=300)
+    plt.savefig(os.path.join(PLOTS_DIR, "base_rate_fallacy_fdr.png"))
     plt.close()
-    
-    # 2. Host-Based Multi-Flow Aggregation with Correlated Noise Modeling (Jansen et al. NDSS 2024)
-    m_flows = np.arange(1, 11)
-    single_fpr = 1e-3
+
+    # 2. Host-Based Multi-Flow Aggregation Curve (Jansen et al. NDSS 2024)
     alpha_edge = 1e-4
-    alpha_core = 1e-6
-    rho_corr = 0.01  # 1% correlated / persistent application noise
-    
-    host_fdrs_ideal_edge = []
-    host_fdrs_ideal_core = []
-    host_fdrs_corr_core = []
-    
-    for m in m_flows:
-        # Scale TPR for M-flow host confirmation (TPR^m)
-        eff_host_tpr = max(1e-12, float(tpr ** m))
-        
-        # Ideal independent false positive rate (FPR^m)
-        eff_host_fpr_ideal = max(1e-18, float(single_fpr ** m))
-        prec_ideal_edge = bayes_precision(eff_host_tpr, eff_host_fpr_ideal, alpha_edge)
-        prec_ideal_core = bayes_precision(eff_host_tpr, eff_host_fpr_ideal, alpha_core)
-        host_fdrs_ideal_edge.append((1.0 - prec_ideal_edge) * 100.0)
-        host_fdrs_ideal_core.append((1.0 - prec_ideal_core) * 100.0)
-        
-        # Correlated error mixture: rho * single_fpr + (1 - rho) * single_fpr^m
-        eff_host_fpr_corr = rho_corr * single_fpr + (1.0 - rho_corr) * eff_host_fpr_ideal
-        prec_corr_core = bayes_precision(eff_host_tpr, eff_host_fpr_corr, alpha_core)
-        host_fdrs_corr_core.append((1.0 - prec_corr_core) * 100.0)
-        
+    flows_per_host = np.arange(1, 16)
+    fpr_single = 1e-3
+    tpr_single = tpr
+    rho_ambient = 0.01
+
+    fdr_independent = []
+    fdr_correlated = []
+
+    for m_flows in flows_per_host:
+        tpr_m = tpr_single ** m_flows
+        fpr_m = fpr_single ** m_flows
+        prec_ind = bayes_precision(tpr_m, fpr_m, alpha_edge)
+        fdr_independent.append((1.0 - prec_ind) * 100.0)
+
+        effective_fpr = max(fpr_m, rho_ambient * (fpr_single ** 0.5))
+        prec_corr = bayes_precision(tpr_m, effective_fpr, alpha_edge)
+        fdr_correlated.append((1.0 - prec_corr) * 100.0)
+
     plt.figure(figsize=(10, 6))
-    plt.plot(m_flows, host_fdrs_ideal_edge, marker='o', label="ISP Edge (alpha=10^-4, Ideální)", color="#1f77b4", linewidth=2.5)
-    plt.plot(m_flows, host_fdrs_ideal_core, marker='s', label="Tier-1 Backbone (alpha=10^-6, Ideální)", color="#d62728", linewidth=2.5)
-    plt.plot(m_flows, host_fdrs_corr_core, marker='^', linestyle='--', label="Tier-1 Backbone s korelujícím šumem (rho=1%)", color="#ff7f0e", linewidth=2.0)
-    plt.title("Host-Based Multi-Flow Aggregation: Eliminace Base Rate Fallacy a vliv korelujícího šumu", fontsize=13, fontweight="bold")
-    plt.xlabel("Počet agregovaných toků na hostitele (M)", fontsize=12)
-    plt.ylabel("Host False Discovery Rate (FDR %)", fontsize=12)
+    plt.plot(flows_per_host, fdr_independent, "o-", label=r"Nezávislý Bayesův ideál ($FPR^M$)", color="green", linewidth=2.5)
+    plt.plot(flows_per_host, fdr_correlated, "s--", label=r"Reálné síťové korelace ($\rho_{ambient}=1\%$)", color="crimson", linewidth=2.5)
+    plt.title(r"Host-Based Multi-Flow agregace cenzora na úrovni IP adresy ($\alpha=10^{-4}$)")
+    plt.xlabel("Počet po sobě jdoucích podezřelých toků z jedné IP adresy (M)")
+    plt.ylabel("False Discovery Rate (FDR %)")
+    plt.xticks(flows_per_host)
     plt.ylim(-5, 105)
-    plt.xticks(m_flows)
-    plt.legend(fontsize=10)
+    plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "host_based_aggregation.png"), dpi=300)
+    plt.savefig(os.path.join(PLOTS_DIR, "host_based_aggregation.png"))
     plt.close()
-    
-    # 3. Clean Computational Benchmark Comparison (Log Scale Throughput + Text Labels)
-    model_names_plot = []
-    latencies = []
-    throughputs = []
-    
-    for m in ["xgboost", "1d_cnn", "transformer"]:
-        if m in results:
-            model_names_plot.append(model_labels[m])
-            latencies.append(results[m]["inference_latency_ms"])
-            throughputs.append(results[m]["throughput_flows_sec"])
-            
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
-    colors = ["#1f77b4", "#2ca02c", "#d62728"]
-    
-    # Subplot 1: Latency
-    bars1 = ax1.bar(model_names_plot, latencies, color=colors, alpha=0.85)
-    ax1.set_title("Inference Latency per Flow (Lower is better)", fontweight="bold", fontsize=12)
-    ax1.set_ylabel("Latency (ms / flow)", fontsize=11)
-    ax1.tick_params(axis='x', rotation=15)
-    ax1.set_ylim(0, max(latencies) * 1.25)
-    for bar in bars1:
-        yval = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2.0, yval + 0.005, f"{yval:.4f} ms", ha='center', va='bottom', fontsize=9, fontweight='bold')
-    
-    # Subplot 2: Throughput (Log Scale)
-    bars2 = ax2.bar(model_names_plot, throughputs, color=colors, alpha=0.85)
-    ax2.set_yscale('log')
-    ax2.set_title("Inference Throughput (Log Scale - Higher is better)", fontweight="bold", fontsize=12)
-    ax2.set_ylabel("Throughput (flows / sec, log scale)", fontsize=11)
-    ax2.tick_params(axis='x', rotation=15)
-    ax2.set_ylim(1e3, 1e7)
-    for bar in bars2:
-        yval = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2.0, yval * 1.25, f"{int(yval):,} flows/s", ha='center', va='bottom', fontsize=9, fontweight='bold')
-    
+
+    # 3. Computational Line-Rate Inspection Throughput & Latency
+    plt.figure(figsize=(10, 5))
+    model_keys = [k for k in models if k in results]
+    names = [model_labels[k] for k in model_keys]
+    throughputs = [results[k].get("throughput_flows_per_sec", 0) for k in model_keys]
+
+    bars = plt.bar(names, throughputs, color=["#2ca02c", "#1f77b4", "#ff7f0e"], edgecolor="black", alpha=0.85)
+    plt.yscale("log")
+    plt.ylabel("Průchodnost inspekce (Toků za sekundu - Log)")
+    plt.title("Výpočetní výkonnostní benchmark modelů na reálném hardware")
+
+    for bar, val in zip(bars, throughputs):
+        plt.text(bar.get_x() + bar.get_width()/2, val * 1.15, f"{val:,.0f} toků/s", ha="center", va="bottom", fontweight="bold", fontsize=10)
+
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOT_DIR, "computational_benchmark.png"), dpi=300)
+    plt.savefig(os.path.join(PLOTS_DIR, "computational_benchmark.png"))
     plt.close()
-    
-    # Remove uninformative flat plots
-    if os.path.exists(os.path.join(PLOT_DIR, "pr_curves_comparison.png")):
-        os.remove(os.path.join(PLOT_DIR, "pr_curves_comparison.png"))
-    if os.path.exists(os.path.join(PLOT_DIR, "pre_vs_post_handshake_comparison.png")):
-        os.remove(os.path.join(PLOT_DIR, "pre_vs_post_handshake_comparison.png"))
-        
-    print(f"\n[OK] Polished evaluation figures generated in {PLOT_DIR}/")
+
+    print(f"[OK] Polished evaluation figures generated in {PLOTS_DIR}/")
+
 
 if __name__ == "__main__":
     main()

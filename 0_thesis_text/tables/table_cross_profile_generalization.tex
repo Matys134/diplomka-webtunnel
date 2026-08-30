@@ -1,19 +1,19 @@
 \begin{table}[htbp]
 \centering
-\caption{Cross-Profile Domain Generalization: Modely trénované pouze na profilu Broadband testované v odlišných síťových podmínkách}
+\caption{Doménová generalizace klasifikátorů napříč síťovými profily (Trénováno na profilu Broadband)}
 \label{tab:cross_profile_generalization}
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccccc}
 \hline
-\textbf{Testovací prostředí} & \textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{PR-AUC} \\
+\textbf{Testovací profil} & \textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{PR-AUC} \\
 \hline
-\multirow{2}{*}{Broadband (In-Domain)} & XGBoost & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 1.0000 \\
- & 1D-CNN & 99.2\% & 95.5\% & 100.0\% & 97.7\% & 1.0000 \\
+Broadband (In-Domain) & XGBoost & 16.7\% & 0.0\% & 0.0\% & 0.9167 \\
+ & 1D-CNN & 16.7\% & 0.0\% & 0.0\% & 0.6844 \\
 \hline
-\multirow{2}{*}{4G/LTE (Domain Shift)} & XGBoost & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 1.0000 \\
- & 1D-CNN & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 1.0000 \\
+4G/LTE (Posun jitteru) & XGBoost & 83.3\% & 0.0\% & 0.0\% & 0.5833 \\
+ & 1D-CNN & 83.3\% & 0.0\% & 0.0\% & 0.0905 \\
 \hline
-\multirow{2}{*}{Lossy WAN (Domain Shift)} & XGBoost & 94.1\% & 80.7\% & 88.9\% & 84.6\% & 0.9493 \\
- & 1D-CNN & 96.0\% & 95.3\% & 81.8\% & 88.0\% & 0.9256 \\
+Lossy WAN (2\% ztrátovost) & XGBoost & 81.9\% & 0.0\% & 0.0\% & 0.5907 \\
+ & 1D-CNN & 81.9\% & 0.0\% & 0.0\% & 0.2403 \\
 \hline
 \end{tabular}
 \end{table}

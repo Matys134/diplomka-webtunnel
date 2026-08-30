@@ -1,254 +1,171 @@
 #!/usr/bin/env python3
+"""
+Trains and profiles the 1D-CNN (Deep Packet) classifier on raw packet sequences.
+Includes:
+- Binary Focal Loss for class imbalance
+- Early stopping based on validation loss
+- Latency and throughput benchmarking on CUDA/CPU
+- Checkpointing best model weights
+"""
 import os
-import json
+import sys
 import time
+import json
 import numpy as np
 import torch
-import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, average_precision_score, confusion_matrix
+from torch.utils.data import DataLoader
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from common.config import (
+    SEQUENCE_DATASET_PATH,
+    CNN_MODEL_PATH,
+    EVALUATION_DIR,
+    RANDOM_SEED,
+    set_global_seed
+)
+from architectures import WebTunnel1DCNN
+from utils import (
+    FlowSequenceDataset,
+    BinaryFocalLoss,
+    load_sequence_data,
+    compute_metrics,
+    get_device
 )
 
-PROCESSED_DIR = "data/processed"
-MODEL_DIR = "3_models/saved_models"
-EVAL_DIR = "4_evaluation"
 
-class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.25, gamma=2.0, reduction="mean"):
-        super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.reduction = reduction
+def train_1d_cnn(
+    dataset_path: str = SEQUENCE_DATASET_PATH,
+    epochs: int = 50,
+    batch_size: int = 32,
+    lr: float = 0.001,
+    patience: int = 12,
+    seed: int = RANDOM_SEED
+):
+    set_global_seed(seed)
+    device = get_device()
+    data = load_sequence_data(dataset_path)
 
-    def forward(self, inputs, targets):
-        p = inputs.view(-1)
-        t = targets.view(-1).float()
-        
-        eps = 1e-7
-        p = torch.clamp(p, eps, 1.0 - eps)
-        
-        # Binary focal loss
-        pt = torch.where(t == 1, p, 1.0 - p)
-        alpha_t = torch.where(t == 1, self.alpha, 1.0 - self.alpha)
-        
-        loss = -alpha_t * torch.pow(1.0 - pt, self.gamma) * torch.log(pt)
-        
-        if self.reduction == "mean":
-            return loss.mean()
-        elif self.reduction == "sum":
-            return loss.sum()
-        return loss
+    X_train, y_train = data["X_train"], data["y_train"]
+    X_val, y_val = data["X_val"], data["y_val"]
+    X_test, y_test = data["X_test"], data["y_test"]
 
-class WebTunnel1DCNN(nn.Module):
-    """
-    1D-CNN Architecture inspired by Deep Packet & Deep Fingerprinting (Sirinam et al.).
-    Input shape: (Batch_Size, 2, 200) where channel 0 is normalized length, channel 1 is log IAT.
-    """
-    def __init__(self, in_channels=2, num_classes=1):
-        super(WebTunnel1DCNN, self).__init__()
-        
-        self.block1 = nn.Sequential(
-            nn.Conv1d(in_channels, 64, kernel_size=7, padding=3),
-            nn.BatchNorm1d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(2)
-        )
-        
-        self.block2 = nn.Sequential(
-            nn.Conv1d(64, 128, kernel_size=5, padding=2),
-            nn.BatchNorm1d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(2)
-        )
-        
-        self.block3 = nn.Sequential(
-            nn.Conv1d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm1d(256),
-            nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool1d(1)
-        )
-        
-        self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.4),
-            nn.Linear(128, num_classes),
-            nn.Sigmoid()
-        )
+    train_ds = FlowSequenceDataset(X_train, y_train, channel_first=True)
+    val_ds = FlowSequenceDataset(X_val, y_val, channel_first=True)
+    test_ds = FlowSequenceDataset(X_test, y_test, channel_first=True)
 
-    def forward(self, x):
-        # x shape: (B, 2, L)
-        out = self.block1(x)
-        out = self.block2(out)
-        out = self.block3(out)
-        out = out.view(out.size(0), -1)
-        out = self.classifier(out)
-        return out
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
 
-def main():
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    os.makedirs(EVAL_DIR, exist_ok=True)
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"=== Training PyTorch 1D-CNN on device: {device} ===")
-    
-    dataset_path = os.path.join(PROCESSED_DIR, "sequence_dataset.npz")
-    if not os.path.exists(dataset_path):
-        print(f"Dataset not found at {dataset_path}!")
-        return
-        
-    data = np.load(dataset_path, allow_pickle=True)
-    # PyTorch Conv1d expects (Batch, Channels, SeqLen) -> Transpose (B, 200, 2) -> (B, 2, 200)
-    X_train = np.transpose(data["X_train"], (0, 2, 1))
-    X_val = np.transpose(data["X_val"], (0, 2, 1))
-    X_test = np.transpose(data["X_test"], (0, 2, 1))
-    
-    y_train = data["y_train"]
-    y_val = data["y_val"]
-    y_test = data["y_test"]
-    
-    train_dataset = TensorDataset(torch.from_numpy(X_train), torch.from_numpy(y_train))
-    val_dataset = TensorDataset(torch.from_numpy(X_val), torch.from_numpy(y_val))
-    test_dataset = TensorDataset(torch.from_numpy(X_test), torch.from_numpy(y_test))
-    
-    batch_size = 16
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-    
     model = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
-    criterion = FocalLoss(alpha=0.25, gamma=2.0)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
-    
-    epochs = 40
+    criterion = BinaryFocalLoss(alpha=0.75, gamma=2.0)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+
     best_val_loss = float("inf")
-    patience = 12
     patience_counter = 0
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
-    start_train_t = time.time()
-    
-    for epoch in range(epochs):
+
+    print(f"=== Training PyTorch 1D-CNN on device: {device} ===")
+    t0 = time.time()
+    for epoch in range(1, epochs + 1):
         model.train()
         train_loss = 0.0
-        for bx, by in train_loader:
-            bx, by = bx.to(device), by.to(device)
+        for batch_x, batch_y in train_loader:
+            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
             optimizer.zero_grad()
-            preds = model(bx).squeeze(-1)
-            loss = criterion(preds, by)
+            outputs = model(batch_x)
+            loss = criterion(outputs, batch_y)
             loss.backward()
             optimizer.step()
-            train_loss += loss.item() * len(by)
-            
-        train_loss /= len(train_dataset)
-        scheduler.step()
-        
-        # Validation
+            train_loss += loss.item() * len(batch_y)
+        train_loss /= len(train_ds)
+
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for bx, by in val_loader:
-                bx, by = bx.to(device), by.to(device)
-                preds = model(bx).squeeze(-1)
-                loss = criterion(preds, by)
-                val_loss += loss.item() * len(by)
-        val_loss /= max(len(val_dataset), 1)
-        
+            for batch_x, batch_y in val_loader:
+                batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+                outputs = model(batch_x)
+                loss = criterion(outputs, batch_y)
+                val_loss += loss.item() * len(batch_y)
+        val_loss /= len(val_ds)
+
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model.state_dict(), os.path.join(MODEL_DIR, "1d_cnn_best.pt"))
             patience_counter = 0
+            torch.save(model.state_dict(), CNN_MODEL_PATH)
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print(f"Early stopping triggered at epoch {epoch+1}.")
+                print(f"Early stopping triggered at epoch {epoch}.")
                 break
-            
-    train_time = time.time() - start_train_t
+
+    train_time = time.time() - t0
     print(f"[OK] Training finished in {train_time:.2f}s. Best Val Loss: {best_val_loss:.4f}")
-    
-    # Load Best Model for Evaluation
-    model.load_state_dict(torch.load(os.path.join(MODEL_DIR, "1d_cnn_best.pt")))
+
+    # Load best checkpoint & Evaluate
+    model.load_state_dict(torch.load(CNN_MODEL_PATH, map_location=device))
     model.eval()
-    
-    # Benchmark Inference Latency on Device
-    n_bench = 1000
-    dummy_input = torch.randn(1, 2, 200, device=device)
-    # Warmup
-    for _ in range(50):
-        _ = model(dummy_input)
+
+    test_probs = []
+    with torch.no_grad():
+        for batch_x, _ in test_loader:
+            batch_x = batch_x.to(device)
+            preds = model(batch_x)
+            test_probs.append(preds.cpu().numpy())
+    test_probs = np.vstack(test_probs).flatten()
+
+    metrics = compute_metrics(y_test, test_probs, threshold=0.5)
+
+    # Latency Benchmark
+    test_tensor = torch.tensor(X_test, dtype=torch.float32).permute(0, 2, 1).to(device)
     if device.type == "cuda":
         torch.cuda.synchronize()
-        
-    start_inf = time.time()
+
+    num_runs = 50
+    t_start = time.perf_counter()
     with torch.no_grad():
-        for _ in range(n_bench):
-            _ = model(dummy_input)
-    if device.type == "cuda":
-        torch.cuda.synchronize()
-        
-    inf_total = time.time() - start_inf
-    latency_ms = (inf_total / n_bench) * 1000.0
-    throughput = n_bench / inf_total
-    
-    # Test Evaluation
-    all_preds, all_probs = [], []
-    with torch.no_grad():
-        for bx, by in test_loader:
-            bx = bx.to(device)
-            probs = model(bx).squeeze(-1).cpu().numpy()
-            all_probs.extend(probs)
-            all_preds.extend((probs >= 0.5).astype(int))
-            
-    test_probs = np.array(all_probs)
-    test_preds = np.array(all_preds)
-    
-    acc = accuracy_score(y_test, test_preds)
-    prec = precision_score(y_test, test_preds, zero_division=0)
-    rec = recall_score(y_test, test_preds, zero_division=0)
-    f1 = f1_score(y_test, test_preds, zero_division=0)
-    roc_auc = roc_auc_score(y_test, test_probs) if len(np.unique(y_test)) > 1 else 0.0
-    pr_auc = average_precision_score(y_test, test_probs) if len(np.unique(y_test)) > 1 else 0.0
-    cm = confusion_matrix(y_test, test_preds).tolist()
-    
+        for _ in range(num_runs):
+            _ = model(test_tensor)
+            if device.type == "cuda":
+                torch.cuda.synchronize()
+    t_end = time.perf_counter()
+
+    total_test_samples = len(X_test) * num_runs
+    avg_latency_ms = ((t_end - t_start) / total_test_samples) * 1000.0
+    throughput = total_test_samples / (t_end - t_start)
+
+    metrics["latency_ms_per_flow"] = avg_latency_ms
+    metrics["throughput_flows_per_sec"] = throughput
+    metrics["training_time_sec"] = train_time
+    metrics["best_val_loss"] = float(best_val_loss)
+
     print("\n--- 1D-CNN Test Set Evaluation ---")
-    print(f"Accuracy:  {acc*100:.2f}%")
-    print(f"Precision: {prec*100:.2f}%")
-    print(f"Recall:    {rec*100:.2f}%")
-    print(f"F1-Score:  {f1*100:.2f}%")
-    print(f"PR-AUC:    {pr_auc:.4f}")
-    print(f"ROC-AUC:   {roc_auc:.4f}")
-    print(f"Inference Latency ({device}):    {latency_ms:.4f} ms/flow")
-    print(f"Inference Throughput ({device}): {throughput:.1f} flows/sec")
-    
-    results = {
-        "model": "1D-CNN",
-        "device": str(device),
-        "train_time_sec": float(train_time),
-        "inference_latency_ms": float(latency_ms),
-        "throughput_flows_sec": float(throughput),
-        "metrics": {
-            "accuracy": float(acc),
-            "precision": float(prec),
-            "recall": float(rec),
-            "f1": float(f1),
-            "pr_auc": float(pr_auc),
-            "roc_auc": float(roc_auc)
-        },
-        "confusion_matrix": cm
-    }
-    
-    with open(os.path.join(EVAL_DIR, "1d_cnn_results.json"), "w") as f:
-        json.dump(results, f, indent=4)
-        
+    print(f"Accuracy:  {metrics['accuracy']*100:.2f}%")
+    print(f"Precision: {metrics['precision']*100:.2f}%")
+    print(f"Recall:    {metrics['recall']*100:.2f}%")
+    print(f"F1-Score:  {metrics['f1_score']*100:.2f}%")
+    print(f"PR-AUC:    {metrics['pr_auc']:.4f}")
+    print(f"ROC-AUC:   {metrics['roc_auc']:.4f}")
+    print(f"Inference Latency ({device.type}):    {avg_latency_ms:.4f} ms/flow")
+    print(f"Inference Throughput ({device.type}): {throughput:.1f} flows/sec")
+
+    print(f"\n[OK] Model saved to {CNN_MODEL_PATH}")
+    res_path = os.path.join(EVALUATION_DIR, "1d_cnn_results.json")
+    with open(res_path, "w") as f:
+        json.dump(metrics, f, indent=4)
+    print(f"[OK] Evaluation results saved to {res_path}")
+
+    # Save test predictions for cascading evaluation
     np.savez_compressed(
-        os.path.join(EVAL_DIR, "1d_cnn_test_preds.npz"),
-        y_test=y_test,
-        y_probs=test_probs
+        os.path.join(EVALUATION_DIR, "1d_cnn_test_preds.npz"),
+        probs=test_probs,
+        y_test=y_test
     )
-    print(f"\n[OK] Model saved to {MODEL_DIR}/1d_cnn_best.pt")
-    print(f"[OK] Evaluation results saved to {EVAL_DIR}/1d_cnn_results.json")
+    return model, metrics
+
 
 if __name__ == "__main__":
-    main()
+    train_1d_cnn()

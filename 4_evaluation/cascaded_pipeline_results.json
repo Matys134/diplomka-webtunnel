@@ -1,42 +1,16 @@
 {
-    "l1_xgb": {
-        "single_latency_us": 66.96374800000001,
-        "batch_latency_ms": 0.00045110714285714285,
-        "throughput_flows_sec": 2216768.2685456416,
-        "metrics": {
-            "acc": 0.9920634920634921,
-            "prec": 0.9574468085106383,
-            "rec": 1.0,
-            "f1": 0.9782608695652174,
-            "pr_auc": 0.9985180305470162,
-            "roc_auc": 0.9996779388083736
-        }
-    },
-    "l2_cnn": {
-        "single_latency_us": 169.138796,
-        "batch_latency_ms": 0.0054864801587301585,
-        "throughput_flows_sec": 182266.22006620895,
-        "metrics": {
-            "acc": 0.9880952380952381,
-            "prec": 0.9772727272727273,
-            "rec": 0.9555555555555556,
-            "f1": 0.9662921348314607,
-            "pr_auc": 0.9939592571818487,
-            "roc_auc": 0.9986044015029523
-        }
-    },
-    "cascaded_pipeline": {
-        "single_latency_us": 71.66204788888889,
-        "batch_latency_ms": 0.0006035093694885361,
-        "throughput_flows_sec": 1656975.1035472455,
-        "escalation_rate_pct": 2.7777777777777777,
-        "metrics": {
-            "acc": 0.996031746031746,
-            "prec": 0.9782608695652174,
-            "rec": 1.0,
-            "f1": 0.989010989010989,
-            "pr_auc": 0.9990230810520665,
-            "roc_auc": 0.9997852925389158
-        }
-    }
+    "n_samples": 252,
+    "n_l1_resolved": 244,
+    "n_l2_escalated": 8,
+    "pct_l2_escalated": 3.1746031746031744,
+    "single_flow_latency_l1_us": 63.7195,
+    "single_flow_latency_l2_us": 137.555,
+    "effective_single_flow_latency_us": 68.08632539682539,
+    "effective_batch_throughput_fps": 1893262.948536424,
+    "accuracy": 0.9841269841269841,
+    "precision": 0.9183673469387755,
+    "recall": 1.0,
+    "f1_score": 0.9574468085106383,
+    "pr_auc": 0.9990121016932612,
+    "roc_auc": 0.9997852925389158
 }
