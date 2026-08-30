@@ -60,16 +60,19 @@ def evaluate_cv(n_splits=5, seed=RANDOM_SEED):
     y = np.concatenate([tab_data["y_train"], tab_data["y_val"], tab_data["y_test"]], axis=0)
     y_mul = np.concatenate([tab_data["y_train_mul"], tab_data["y_val_mul"], tab_data["y_test_mul"]], axis=0)
 
-    # Reconstruct session IDs (1..100 based on split ranges)
-    n_train = len(tab_data["X_train"])
-    n_val = len(tab_data["X_val"])
-    n_test = len(tab_data["X_test"])
-
-    # Approximate session groups
-    groups = np.zeros(len(y), dtype=int)
-    groups[:n_train] = np.random.RandomState(seed).randint(1, 71, size=n_train)
-    groups[n_train:n_train+n_val] = np.random.RandomState(seed).randint(71, 86, size=n_val)
-    groups[n_train+n_val:] = np.random.RandomState(seed).randint(86, 101, size=n_test)
+    # Use real session IDs (1..100) extracted during capture
+    if tab_data.get("sample_ids_all") is not None:
+        groups = tab_data["sample_ids_all"]
+    elif tab_data.get("sample_ids_train") is not None:
+        groups = np.concatenate([tab_data["sample_ids_train"], tab_data["sample_ids_val"], tab_data["sample_ids_test"]], axis=0)
+    else:
+        n_train = len(tab_data["X_train"])
+        n_val = len(tab_data["X_val"])
+        n_test = len(tab_data["X_test"])
+        groups = np.zeros(len(y), dtype=int)
+        groups[:n_train] = np.random.RandomState(seed).randint(1, 71, size=n_train)
+        groups[n_train:n_train+n_val] = np.random.RandomState(seed).randint(71, 86, size=n_val)
+        groups[n_train+n_val:] = np.random.RandomState(seed).randint(86, 101, size=n_test)
 
     sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
 

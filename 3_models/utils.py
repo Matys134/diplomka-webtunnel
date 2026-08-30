@@ -81,6 +81,10 @@ def load_tabular_data(dataset_path: str = TABULAR_DATASET_PATH) -> Dict[str, Any
         "X_test": data["X_test"],
         "y_test": data["y_test"],
         "y_test_mul": data["y_test_mul"],
+        "sample_ids_train": data["sample_ids_train"] if "sample_ids_train" in data else None,
+        "sample_ids_val": data["sample_ids_val"] if "sample_ids_val" in data else None,
+        "sample_ids_test": data["sample_ids_test"] if "sample_ids_test" in data else None,
+        "sample_ids_all": data["sample_ids_all"] if "sample_ids_all" in data else None,
         "feature_names": list(data["feature_names"]),
     }
 

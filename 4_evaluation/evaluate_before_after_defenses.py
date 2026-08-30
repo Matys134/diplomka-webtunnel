@@ -147,9 +147,8 @@ def recompute_tabular_features(X_seq_def):
         for s in range(X_seq_def.shape[1]):
             norm_len = X_seq_def[i, s, 0]
             norm_iat = X_seq_def[i, s, 1]
-            if abs(norm_len) < 1e-4:
-                continue
-            curr_t += float(norm_iat)
+            delta_t = float(np.expm1(float(norm_iat) * 10.0))
+            curr_t += max(0.0, delta_t)
             signed_len = int(round(norm_len * 1500.0))
             pkts.append((curr_t, signed_len))
 

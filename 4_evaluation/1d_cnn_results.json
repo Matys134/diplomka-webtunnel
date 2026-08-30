@@ -6,8 +6,8 @@
     "roc_auc": 0.999141170155663,
     "pr_auc": 0.9962217918253358,
     "threshold": 0.5,
-    "latency_ms_per_flow": 0.0028956163490846173,
-    "throughput_flows_per_sec": 345349.6179893193,
-    "training_time_sec": 3.103503704071045,
+    "latency_ms_per_flow": 0.00162679428588793,
+    "throughput_flows_per_sec": 614705.8719561363,
+    "training_time_sec": 1.883115530014038,
     "best_val_loss": 0.001639029572230219
 }

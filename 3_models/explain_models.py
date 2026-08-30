@@ -104,8 +104,8 @@ def explain_1d_cnn():
     seq_len = mean_saliency.shape[1]
     pkt_indices = np.arange(1, seq_len + 1)
 
-    ax.plot(pkt_indices, mean_saliency[0], label="Direction Gradient Saliency", color="#2ca02c", lw=2)
-    ax.plot(pkt_indices, mean_saliency[1], label="Packet Length Gradient Saliency", color="#d62728", lw=2)
+    ax.plot(pkt_indices, mean_saliency[0], label="Signed Packet Length (Length & Direction)", color="#2ca02c", lw=2)
+    ax.plot(pkt_indices, mean_saliency[1], label="Inter-Arrival Time (IAT Saliency)", color="#d62728", lw=2)
     ax.set_xlabel("Packet Position in Flow Sequence (1 - 200)")
     ax.set_ylabel("Mean Gradient Saliency Magnitude")
     ax.set_title("1D-CNN Temporal Feature Attribution (Packet-Level Saliency Map)")
@@ -148,8 +148,8 @@ def explain_transformer():
     seq_len = mean_saliency.shape[0]
     pkt_indices = np.arange(1, seq_len + 1)
 
-    ax.plot(pkt_indices, mean_saliency[:, 0], label="Direction Gradient Saliency", color="#1f77b4", lw=2)
-    ax.plot(pkt_indices, mean_saliency[:, 1], label="Packet Length Gradient Saliency", color="#ff7f0e", lw=2)
+    ax.plot(pkt_indices, mean_saliency[:, 0], label="Signed Packet Length (Length & Direction)", color="#1f77b4", lw=2)
+    ax.plot(pkt_indices, mean_saliency[:, 1], label="Inter-Arrival Time (IAT Saliency)", color="#ff7f0e", lw=2)
     ax.set_xlabel("Packet Position in Flow Sequence (1 - 200)")
     ax.set_ylabel("Mean Gradient Saliency Magnitude")
     ax.set_title("Flow-Transformer Input Gradient Saliency Attribution across Sequence")

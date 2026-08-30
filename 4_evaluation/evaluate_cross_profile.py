@@ -3,6 +3,7 @@
 Cross-Profile Domain Generalization Experiment:
 Evaluates classifier robustness against network domain shifts by training on Gigabit Broadband
 and evaluating out-of-domain on 4G/LTE (high jitter) and Lossy WAN (2% packet loss).
+Applies strict Session-Stratified splitting (Sample ID <= 70 Train, > 70 Test).
 """
 import os
 import sys
@@ -47,6 +48,11 @@ def parse_pcap(f):
     if not matched_class or not matched_profile:
         return None
 
+    try:
+        sample_id = int(os.path.splitext(basename)[0].split("_")[-1])
+    except Exception:
+        sample_id = -1
+
     pkts = extract_raw_packets_from_pcap(f)
     if len(pkts) < 3:
         return None
@@ -58,6 +64,7 @@ def parse_pcap(f):
     return {
         "profile": matched_profile,
         "class": matched_class,
+        "sample_id": sample_id,
         "tab": tab,
         "seq": seq,
         "label": label
@@ -80,13 +87,12 @@ def main():
     for p in NETEM_PROFILES:
         print(f"  Profile '{p}': {len(by_profile[p])} valid flows")
 
-    # 1. Train on Broadband (80% train, 20% val)
+    # 1. Train on Broadband (Session-Stratified: ID <= 70 Train, ID > 70 In-Domain Test)
     bb_data = by_profile["broadband"]
-    n_bb = len(bb_data)
-    split_idx = int(0.8 * n_bb)
+    train_samples = [s for s in bb_data if s["sample_id"] <= 70]
+    val_samples = [s for s in bb_data if s["sample_id"] > 70]
 
-    train_samples = bb_data[:split_idx]
-    val_samples = bb_data[split_idx:]
+    print(f"  Broadband split: Train={len(train_samples)} flows, Test={len(val_samples)} flows")
 
     X_train_tab = np.array([s["tab"] for s in train_samples], dtype=np.float32)
     y_train = np.array([s["label"] for s in train_samples], dtype=np.int64)
@@ -159,6 +165,9 @@ def main():
         samples = by_profile[p]
         if p == "broadband":
             samples = val_samples
+        else:
+            # For LTE & Lossy, evaluate on held-out test sessions (ID > 70) for strict comparability
+            samples = [s for s in samples if s["sample_id"] > 70]
 
         X_p_tab = np.array([s["tab"] for s in samples], dtype=np.float32)
         X_p_seq = np.array([s["seq"] for s in samples], dtype=np.float32)
@@ -211,7 +220,7 @@ def main():
             f.write(r"\hline" + "\n")
         f.write(r"\end{tabular}" + "\n")
         f.write(r"\end{table}" + "\n")
-    print(f"\n[OK] Exported {tex_path}")
+    print(f"[OK] Exported {tex_path}")
 
 
 if __name__ == "__main__":
