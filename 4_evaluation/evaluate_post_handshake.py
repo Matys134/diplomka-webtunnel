@@ -72,9 +72,13 @@ def train_eval_variant(X_tab, X_seq, y_bin, sample_ids, desc="Full"):
     set_global_seed(RANDOM_SEED)
     device = get_device()
 
-    train_idx = np.where(sample_ids <= 70)[0]
-    val_idx = np.where((sample_ids > 70) & (sample_ids <= 85))[0]
-    test_idx = np.where(sample_ids > 85)[0]
+    max_sid = int(np.max(sample_ids))
+    train_cutoff = int(max_sid * 0.70)
+    val_cutoff = int(max_sid * 0.85)
+
+    train_idx = np.where(sample_ids <= train_cutoff)[0]
+    val_idx = np.where((sample_ids > train_cutoff) & (sample_ids <= val_cutoff))[0]
+    test_idx = np.where(sample_ids > val_cutoff)[0]
 
     # 1. XGBoost
     pos_c = int(np.sum(y_bin[train_idx] == 1))

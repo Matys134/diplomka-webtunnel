@@ -110,10 +110,14 @@ def main():
         invalid_count = int(np.sum(sample_ids <= 0))
         raise ValueError(f"CRITICAL ERROR: {invalid_count} PCAPs have unparseable session IDs! Cannot guarantee anti-leakage session split.")
 
-    train_idx = np.where(sample_ids <= 70)[0]
-    val_idx = np.where((sample_ids > 70) & (sample_ids <= 85))[0]
-    test_idx = np.where(sample_ids > 85)[0]
-    split_strategy = "Session-Stratified-Anti-Leakage (1-70 Train, 71-85 Val, 86-100 Test)"
+    max_sid = int(np.max(sample_ids))
+    train_cutoff = int(max_sid * 0.70)
+    val_cutoff = int(max_sid * 0.85)
+
+    train_idx = np.where(sample_ids <= train_cutoff)[0]
+    val_idx = np.where((sample_ids > train_cutoff) & (sample_ids <= val_cutoff))[0]
+    test_idx = np.where(sample_ids > val_cutoff)[0]
+    split_strategy = f"Session-Stratified-Anti-Leakage (1-{train_cutoff} Train, {train_cutoff+1}-{val_cutoff} Val, {val_cutoff+1}-{max_sid} Test)"
 
     print(f"[{split_strategy}] Train={len(train_idx)}, Val={len(val_idx)}, Test={len(test_idx)}")
 

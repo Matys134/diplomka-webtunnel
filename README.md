@@ -20,29 +20,29 @@ This thesis investigates the **traffic analysis resilience** of WebTunnel agains
 ## 🔬 Experimental Results Summary
 
 ### 1. Model Comparison (5-Fold Stratified Cross-Validation)
-Evaluated across **1,800 PCAPs (1,746 verified TLS 1.3 network flows)** under native **HTTP/2** framing and strict **L7 anti-leakage sanitization** against 5 *Hard Negative* classes (*Direct Web Browsing*, *WebSocket Tickers*, *Interactive WebSocket Chat*, *DASH Video Streaming*, and *HTTPS Web Assets*):
+Evaluated across **9,000 PCAPs (8,500 verified TLS 1.3 network flows)** under native **HTTP/2** framing and strict **L7 anti-leakage sanitization** against 5 *Hard Negative* classes (*Direct Web Browsing*, *WebSocket Tickers*, *Interactive WebSocket Chat*, *DASH Video Streaming*, and *HTTPS Web Assets*):
 
 | Model | Architecture / Hardware | Accuracy ($\mu \pm \sigma$) | PR-AUC ($\mu \pm \sigma$) | ROC-AUC ($\mu \pm \sigma$) | Latency / Flow | Throughput |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.5 \pm 0.4\%$** | **$0.999 \pm 0.001$** | **$1.000 \pm 0.000$** | **0.0007 ms** | **1,378,798 flows/s** |
-| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$98.4 \pm 0.8\%$** | **$0.992 \pm 0.009$** | **$0.999 \pm 0.001$** | **0.1199 ms** | **8,337 flows/s** |
-| **Flow-Transformer** | [CLS] Token Attention (CUDA) | **$98.3 \pm 1.0\%$** | **$0.982 \pm 0.019$** | **$0.994 \pm 0.008$** | **0.1791 ms** | **5,584 flows/s** |
+| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.0 \pm 0.2\%$** | **$0.999 \pm 0.000$** | **$1.000 \pm 0.000$** | **0.0003 ms** | **2,995,853 flows/s** |
+| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$99.2 \pm 0.2\%$** | **$0.998 \pm 0.001$** | **$1.000 \pm 0.000$** | **0.0026 ms** | **384,428 flows/s** |
+| **Flow-Transformer** | [CLS] Token Attention (CUDA) | **$98.5 \pm 0.7\%$** | **$0.996 \pm 0.002$** | **$0.999 \pm 0.000$** | **0.0122 ms** | **81,726 flows/s** |
 
 ### 2. 2-Tier Cascaded Classification Architecture (L1 CPU $\rightarrow$ L2 GPU)
 To achieve line-rate inspection on ISP backbone networks, we design and benchmark a hybrid pipeline:
-* **L1 CPU Filter (XGBoost):** Resolves **97.2%** of traffic with $66.96\,\mu\text{s}$ single-flow latency.
-* **L2 GPU Inspection (1D-CNN):** Inspects only ambiguous flows ($0.05 \le p \le 0.95$, representing **2.8%** of traffic).
-* **Overall Hybrid Performance:** **$71.66\,\mu\text{s}$ single-flow latency**, **1,656,975 flows/second batch throughput** with **99.60% accuracy** and **0.9990 PR-AUC**.
+* **L1 CPU Filter (XGBoost):** Resolves **97.9%** of traffic with $62.23\,\mu\text{s}$ single-flow latency.
+* **L2 GPU Inspection (1D-CNN):** Inspects only ambiguous flows ($0.05 \le p \le 0.95$, representing **2.1%** of traffic).
+* **Overall Hybrid Performance:** **$64.98\,\mu\text{s}$ single-flow latency**, **2,204,567 flows/second batch throughput** with **99.92% accuracy** and **1.0000 PR-AUC**.
 
 ### 3. Pre- vs. Post-Handshake Analysis (Dynamic TLS 1.3 0x17 Cutoff)
 By dynamically stripping all initial TLS handshakes at the first Application Data record (`ContentType == 0x17`), we empirically prove that model detection is **NOT dependent on TLS metadata**, but stems purely from the **Tor cell payload quantization and stream dynamics**:
-* **Full Flow:** XGBoost Acc: **99.21%** (PR-AUC: **0.9995**), 1D-CNN Acc: **98.02%** (PR-AUC: **0.9946**)
-* **Post-Handshake Only:** XGBoost Acc: **98.02%** (PR-AUC: **0.9978**), 1D-CNN Acc: **99.21%** (PR-AUC: **0.9975**)
+* **Full Flow:** XGBoost Acc: **99.21%** (PR-AUC: **0.9995**), 1D-CNN Acc: **97.62%** (PR-AUC: **0.9938**)
+* **Post-Handshake Only:** XGBoost Acc: **98.41%** (PR-AUC: **0.9986**), 1D-CNN Acc: **98.81%** (PR-AUC: **0.9978**)
 
 ### 4. Countermeasure Evaluation (Before vs. After Defense)
 We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
-1. **Adaptive Intra-frame Padding (1–128 B):** Bandwidth overhead **3.7%**; reduces XGBoost detection recall to **97.8%**.
-2. **Cell Coalescing & Cover Traffic Shaping:** Bandwidth overhead **11.4%**; physically coalesces consecutive 514 B Tor cells into variable MTU-bounded frames (up to 1448 B) and injects dummy negotiation frames, reducing Flow-Transformer recall to **88.9%** and flattening early burst saliency.
+1. **Adaptive Intra-frame Padding (1–128 B):** Bandwidth overhead **4.1%**; reduces XGBoost detection recall to **36.0%**.
+2. **Cell Coalescing & Cover Traffic Shaping:** Bandwidth overhead **4.5%**; physically coalesces consecutive 514 B Tor cells into variable MTU-bounded frames (up to 1448 B) and injects dummy negotiation frames, reducing XGBoost recall to **38.2%** and flattening early burst saliency.
 
 ---
 

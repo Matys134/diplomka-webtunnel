@@ -87,12 +87,15 @@ def main():
     for p in NETEM_PROFILES:
         print(f"  Profile '{p}': {len(by_profile[p])} valid flows")
 
-    # 1. Train on Broadband (Session-Stratified: ID <= 70 Train, ID > 70 In-Domain Test)
-    bb_data = by_profile["broadband"]
-    train_samples = [s for s in bb_data if s["sample_id"] <= 70]
-    val_samples = [s for s in bb_data if s["sample_id"] > 70]
+    max_sid = max(s["sample_id"] for s in valid)
+    train_cutoff = int(max_sid * 0.70)
 
-    print(f"  Broadband split: Train={len(train_samples)} flows, Test={len(val_samples)} flows")
+    # 1. Train on Broadband (Session-Stratified: ID <= train_cutoff Train, ID > train_cutoff In-Domain Test)
+    bb_data = by_profile["broadband"]
+    train_samples = [s for s in bb_data if s["sample_id"] <= train_cutoff]
+    val_samples = [s for s in bb_data if s["sample_id"] > train_cutoff]
+
+    print(f"  Broadband split: Train={len(train_samples)} flows, Test={len(val_samples)} flows (Cutoff: {train_cutoff})")
 
     X_train_tab = np.array([s["tab"] for s in train_samples], dtype=np.float32)
     y_train = np.array([s["label"] for s in train_samples], dtype=np.int64)
@@ -166,8 +169,8 @@ def main():
         if p == "broadband":
             samples = val_samples
         else:
-            # For LTE & Lossy, evaluate on held-out test sessions (ID > 70) for strict comparability
-            samples = [s for s in samples if s["sample_id"] > 70]
+            # For LTE & Lossy, evaluate on held-out test sessions (ID > train_cutoff) for strict comparability
+            samples = [s for s in samples if s["sample_id"] > train_cutoff]
 
         X_p_tab = np.array([s["tab"] for s in samples], dtype=np.float32)
         X_p_seq = np.array([s["seq"] for s in samples], dtype=np.float32)

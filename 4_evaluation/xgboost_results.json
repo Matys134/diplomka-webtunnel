@@ -1,13 +1,13 @@
 {
-    "accuracy": 0.996031746031746,
-    "precision": 0.9782608695652174,
+    "accuracy": 0.9984214680347278,
+    "precision": 0.9911894273127754,
     "recall": 1.0,
-    "f1_score": 0.989010989010989,
-    "roc_auc": 0.999892646269458,
-    "pr_auc": 0.9995115405260333,
-    "threshold": 0.873013973236084,
-    "latency_ms_per_flow": 0.0012742294443125414,
-    "throughput_flows_per_sec": 784788.0179377814,
-    "training_time_sec": 0.2630133628845215,
-    "best_iteration": 139
+    "f1_score": 0.995575221238938,
+    "roc_auc": 1.0,
+    "pr_auc": 1.0,
+    "threshold": 0.9281079173088074,
+    "latency_ms_per_flow": 0.00033379477508393307,
+    "throughput_flows_per_sec": 2995852.765366231,
+    "training_time_sec": 0.341916561126709,
+    "best_iteration": 182
 }
