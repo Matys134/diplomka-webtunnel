@@ -1,28 +1,27 @@
 {
   "direct_web_browsing": {
-    "socket_reused_from": 31,
-    "dial failed": 1
+    "socket_reused_from": 24,
+    "pcap_too_small": 1,
+    "dial failed": 2
   },
   "video_streaming": {
-    "socket_reused_from": 18,
-    "pcap_too_small": 3,
-    "dial failed": 5
+    "socket_reused_from": 19,
+    "dial failed": 2
   },
   "web_assets": {
-    "socket_reused_from": 20,
-    "dial failed": 3
+    "socket_reused_from": 24,
+    "dial failed": 5
   },
   "websocket_chat": {
-    "socket_reused_from": 26,
-    "ws dial error": 6,
-    "pcap_too_small": 1
+    "socket_reused_from": 18,
+    "ws dial error": 2
   },
   "websocket_ticker": {
-    "socket_reused_from": 26,
-    "ws dial error": 5
+    "socket_reused_from": 19,
+    "ws dial error": 1
   },
   "webtunnel": {
-    "socket_reused_from": 18,
+    "socket_reused_from": 16,
     "pcap_too_small": 1,
     "no bytes received through the tunnel": 4,
     "tor_bootstrap_timeout": 5

@@ -5,8 +5,8 @@
     "threshold": 0.2,
     "adversary": "static",
     "n_positives": 46,
-    "n_negatives": 227,
-    "fpr_resolution_floor": 0.004405286343612335,
+    "n_negatives": 233,
+    "fpr_resolution_floor": 0.004291845493562232,
     "tp": 46,
     "fp": 0,
     "tpr": 1.0,
@@ -17,9 +17,9 @@
     "fpr": 0.0,
     "fpr_ci95": [
       0.0,
-      0.01611924211339213
+      0.01570743174646869
     ],
-    "fpr_upper_bound_95": 0.01611924211339213,
+    "fpr_upper_bound_95": 0.01570743174646869,
     "roc_auc": 1.0,
     "average_precision": 1.0
   },
@@ -30,8 +30,8 @@
       "threshold": 0.1,
       "adversary": "static",
       "n_positives": 46,
-      "n_negatives": 227,
-      "fpr_resolution_floor": 0.004405286343612335,
+      "n_negatives": 233,
+      "fpr_resolution_floor": 0.004291845493562232,
       "tp": 46,
       "fp": 0,
       "tpr": 1.0,
@@ -42,9 +42,9 @@
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01611924211339213
+        0.01570743174646869
       ],
-      "fpr_upper_bound_95": 0.01611924211339213,
+      "fpr_upper_bound_95": 0.01570743174646869,
       "roc_auc": 1.0,
       "average_precision": 1.0
     },
@@ -54,8 +54,8 @@
       "threshold": 0.2,
       "adversary": "static",
       "n_positives": 46,
-      "n_negatives": 227,
-      "fpr_resolution_floor": 0.004405286343612335,
+      "n_negatives": 233,
+      "fpr_resolution_floor": 0.004291845493562232,
       "tp": 46,
       "fp": 0,
       "tpr": 1.0,
@@ -66,9 +66,9 @@
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01611924211339213
+        0.01570743174646869
       ],
-      "fpr_upper_bound_95": 0.01611924211339213,
+      "fpr_upper_bound_95": 0.01570743174646869,
       "roc_auc": 1.0,
       "average_precision": 1.0
     },
@@ -78,8 +78,8 @@
       "threshold": 0.3,
       "adversary": "static",
       "n_positives": 46,
-      "n_negatives": 227,
-      "fpr_resolution_floor": 0.004405286343612335,
+      "n_negatives": 233,
+      "fpr_resolution_floor": 0.004291845493562232,
       "tp": 46,
       "fp": 0,
       "tpr": 1.0,
@@ -90,9 +90,9 @@
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01611924211339213
+        0.01570743174646869
       ],
-      "fpr_upper_bound_95": 0.01611924211339213,
+      "fpr_upper_bound_95": 0.01570743174646869,
       "roc_auc": 1.0,
       "average_precision": 1.0
     },
@@ -102,8 +102,8 @@
       "threshold": 0.4,
       "adversary": "static",
       "n_positives": 46,
-      "n_negatives": 227,
-      "fpr_resolution_floor": 0.004405286343612335,
+      "n_negatives": 233,
+      "fpr_resolution_floor": 0.004291845493562232,
       "tp": 46,
       "fp": 0,
       "tpr": 1.0,
@@ -114,9 +114,9 @@
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01611924211339213
+        0.01570743174646869
       ],
-      "fpr_upper_bound_95": 0.01611924211339213,
+      "fpr_upper_bound_95": 0.01570743174646869,
       "roc_auc": 1.0,
       "average_precision": 1.0
     },
@@ -126,8 +126,8 @@
       "threshold": 0.5,
       "adversary": "static",
       "n_positives": 46,
-      "n_negatives": 227,
-      "fpr_resolution_floor": 0.004405286343612335,
+      "n_negatives": 233,
+      "fpr_resolution_floor": 0.004291845493562232,
       "tp": 46,
       "fp": 0,
       "tpr": 1.0,
@@ -138,9 +138,9 @@
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01611924211339213
+        0.01570743174646869
       ],
-      "fpr_upper_bound_95": 0.01611924211339213,
+      "fpr_upper_bound_95": 0.01570743174646869,
       "roc_auc": 1.0,
       "average_precision": 1.0
     },
@@ -150,8 +150,8 @@
       "threshold": 0.6,
       "adversary": "static",
       "n_positives": 46,
-      "n_negatives": 227,
-      "fpr_resolution_floor": 0.004405286343612335,
+      "n_negatives": 233,
+      "fpr_resolution_floor": 0.004291845493562232,
       "tp": 46,
       "fp": 0,
       "tpr": 1.0,
@@ -162,9 +162,9 @@
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01611924211339213
+        0.01570743174646869
       ],
-      "fpr_upper_bound_95": 0.01611924211339213,
+      "fpr_upper_bound_95": 0.01570743174646869,
       "roc_auc": 1.0,
       "average_precision": 1.0
     },
@@ -174,8 +174,8 @@
       "threshold": 0.7,
       "adversary": "static",
       "n_positives": 46,
-      "n_negatives": 227,
-      "fpr_resolution_floor": 0.004405286343612335,
+      "n_negatives": 233,
+      "fpr_resolution_floor": 0.004291845493562232,
       "tp": 46,
       "fp": 0,
       "tpr": 1.0,
@@ -186,9 +186,9 @@
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01611924211339213
+        0.01570743174646869
       ],
-      "fpr_upper_bound_95": 0.01611924211339213,
+      "fpr_upper_bound_95": 0.01570743174646869,
       "roc_auc": 1.0,
       "average_precision": 1.0
     }

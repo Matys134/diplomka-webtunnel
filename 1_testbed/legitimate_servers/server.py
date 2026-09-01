@@ -5,7 +5,6 @@ import random
 import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, Response
-import uvicorn
 
 app = FastAPI(title="Legitimate Hard Negatives Mock Server")
 

@@ -6,10 +6,10 @@
       1.0
     ],
     "fpr": 0.0,
-    "fpr_upper95": 0.01611924211339213,
+    "fpr_upper95": 0.01570743174646869,
     "n_positives": 46,
-    "n_negatives": 227,
-    "resolution_floor": 0.004405286343612335
+    "n_negatives": 233,
+    "resolution_floor": 0.004291845493562232
   },
   "host_llr_sweep": [
     {
@@ -184,35 +184,35 @@
   "base_rate_table": [
     {
       "alpha": 0.01,
-      "fdr_at_measured_fpr": 0.30368098159509205,
+      "fdr_at_measured_fpr": 0.2981927710843374,
       "fdr_at_1e-4_PROJECTED": 0.009802950787206721,
       "fdr_at_1e-5_PROJECTED": 0.0009890208693393854
     },
     {
       "alpha": 0.001,
-      "fdr_at_measured_fpr": 0.8148450244698205,
+      "fdr_at_measured_fpr": 0.8108766233766234,
       "fdr_at_1e-4_PROJECTED": 0.09082643876716068,
       "fdr_at_1e-5_PROJECTED": 0.009891187041455973
     },
     {
       "alpha": 0.0001,
-      "fdr_at_measured_fpr": 0.9778016819870917,
+      "fdr_at_measured_fpr": 0.9772283033620016,
       "fdr_at_1e-4_PROJECTED": 0.49997499874993756,
       "fdr_at_1e-5_PROJECTED": 0.09090082637114882
     },
     {
       "alpha": 1e-05,
-      "fdr_at_measured_fpr": 0.9977351186318919,
+      "fdr_at_measured_fpr": 0.9976753930880358,
       "fdr_at_1e-4_PROJECTED": 0.9090900826371149,
       "fdr_at_1e-5_PROJECTED": 0.4999974999875
     },
     {
       "alpha": 1e-06,
-      "fdr_at_measured_fpr": 0.9997730512904084,
+      "fdr_at_measured_fpr": 0.9997670540434619,
       "fdr_at_1e-4_PROJECTED": 0.9900990000980199,
       "fdr_at_1e-5_PROJECTED": 0.9090908264462059
     }
   ],
-  "projection_disclaimer": "FPR below 1/n_negatives is projected, not measured. n_negatives = 227, floor = 4.405e-03",
+  "projection_disclaimer": "FPR below 1/n_negatives is projected, not measured. n_negatives = 233, floor = 4.292e-03",
   "method": "S_M = sum ln(p_k/(1-p_k)) over M flows attributed to one destination; positive hosts sampled within a single socket to preserve correlation."
 }

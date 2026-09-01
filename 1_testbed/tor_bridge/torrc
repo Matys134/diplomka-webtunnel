@@ -35,3 +35,8 @@ ContactInfo lab-student@webtunnel.local
 HiddenServiceDir /var/lib/tor/onion_decoy
 HiddenServicePort 80 172.20.0.20:8080
 HiddenServiceVersion 3
+
+ExitRelay 1
+ExitPolicy accept 172.20.0.0/16:*
+ExitPolicy reject *:*
+IPv6Exit 0

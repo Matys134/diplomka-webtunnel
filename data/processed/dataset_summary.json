@@ -1,38 +1,38 @@
 {
     "total_captures": 2016,
-    "total_flows": 1843,
-    "yield_pct": 91.42,
+    "total_flows": 1873,
+    "yield_pct": 92.91,
     "group_key": "socket_id",
     "split_strategy": "v2.1 group-disjoint on socket_id (70/15/15, stratified by class)",
     "classes": {
-        "direct_web_browsing": 304,
-        "video_streaming": 310,
-        "web_assets": 313,
-        "websocket_chat": 303,
-        "websocket_ticker": 305,
-        "webtunnel": 308
+        "direct_web_browsing": 309,
+        "video_streaming": 315,
+        "web_assets": 307,
+        "websocket_chat": 316,
+        "websocket_ticker": 316,
+        "webtunnel": 310
     },
-    "distinct_sockets": 1843,
+    "distinct_sockets": 1873,
     "distinct_sockets_by_class": {
-        "direct_web_browsing": 304,
-        "video_streaming": 310,
-        "web_assets": 313,
-        "websocket_chat": 303,
-        "websocket_ticker": 305,
-        "webtunnel": 308
+        "direct_web_browsing": 309,
+        "video_streaming": 315,
+        "web_assets": 307,
+        "websocket_chat": 316,
+        "websocket_ticker": 316,
+        "webtunnel": 310
     },
-    "flows_with_client_syn": 1843,
-    "flows_with_full_handshake": 1841,
+    "flows_with_client_syn": 1873,
+    "flows_with_full_handshake": 1872,
     "provenance": {
-        "collector": 1843
+        "collector": 1873
     },
     "splits": {
-        "train": 1293,
-        "val": 277,
-        "test": 273
+        "train": 1314,
+        "val": 280,
+        "test": 279
     },
-    "negatives_in_test": 227,
-    "fpr_resolution_floor": 0.004405286343612335,
+    "negatives_in_test": 233,
+    "fpr_resolution_floor": 0.004291845493562232,
     "tabular_feature_count": 50,
     "sequence_shape": [
         200,
@@ -40,29 +40,28 @@
     ],
     "attrition": {
         "direct_web_browsing": {
-            "socket_reused_from": 31,
-            "dial failed": 1
+            "socket_reused_from": 24,
+            "pcap_too_small": 1,
+            "dial failed": 2
         },
         "video_streaming": {
-            "socket_reused_from": 18,
-            "pcap_too_small": 3,
-            "dial failed": 5
+            "socket_reused_from": 19,
+            "dial failed": 2
         },
         "web_assets": {
-            "socket_reused_from": 20,
-            "dial failed": 3
+            "socket_reused_from": 24,
+            "dial failed": 5
         },
         "websocket_chat": {
-            "socket_reused_from": 26,
-            "ws dial error": 6,
-            "pcap_too_small": 1
+            "socket_reused_from": 18,
+            "ws dial error": 2
         },
         "websocket_ticker": {
-            "socket_reused_from": 26,
-            "ws dial error": 5
+            "socket_reused_from": 19,
+            "ws dial error": 1
         },
         "webtunnel": {
-            "socket_reused_from": 18,
+            "socket_reused_from": 16,
             "pcap_too_small": 1,
             "no bytes received through the tunnel": 4,
             "tor_bootstrap_timeout": 5
