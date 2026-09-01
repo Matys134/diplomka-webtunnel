@@ -147,25 +147,41 @@ async def post_upload(request: Request):
     body = await request.body()
     return {"status": "ok", "uploaded_size": len(body)}
 
+@app.get("/api/v1/blob")
+async def sized_blob(bytes: int = 4096):
+    """Return exactly `bytes` bytes.
+
+    FIX B-3 / gate G4: the session budget is only enforceable if the server can be asked for a
+    specific number of bytes.  Every class -- including WebTunnel through the onion service --
+    uses this endpoint to converge on its drawn (bytes_up, bytes_down) budget, so volume stops
+    being class-informative by construction.
+    """
+    n = max(1, min(int(bytes), 512 * 1024))
+    return Response(content=b"B" * n, media_type="application/octet-stream")
+
+
 @app.get("/")
 async def root():
     return HTMLResponse("<h1>Legitimate Service Cluster (TLS Encrypted)</h1><p>Mock server for Hard Negatives.</p>")
 
 if __name__ == "__main__":
-    ssl_key = "/app/certs/server.key" if os.path.exists("/app/certs/server.key") else None
-    ssl_cert = "/app/certs/server.crt" if os.path.exists("/app/certs/server.crt") else None
-    
-    # Run with HTTP/2 and WebSockets over TLS on port 8443
+    # FIX B-4 (docs/05-final-review.md):
+    # This process no longer terminates TLS.  It used to run hypercorn with its own certificate,
+    # while the WebTunnel bridge was fronted by nginx -- and the two stacks differ in whether they
+    # emit the TLS 1.3 middlebox-compatibility ChangeCipherSpec record.  That made `down_len_min`
+    # exactly 6 B for every WebTunnel flow and 24-58 B for every negative: a single-feature stump
+    # at AUC 1.0000 that measured the server implementation, not the protocol.
+    #
+    # TLS is now terminated by nginx (1_testbed/legitimate_servers/nginx.conf), using the same
+    # build and the same shared parameter file as the bridge front end.  This app speaks plain
+    # HTTP/1.1 on 8000 and is reachable only from inside the Docker network.
     from hypercorn.config import Config
     from hypercorn.asyncio import serve
-    
+
     config = Config()
-    config.bind = ["0.0.0.0:8443"]
-    if ssl_key and ssl_cert:
-        config.keyfile = ssl_key
-        config.certfile = ssl_cert
-        config.alpn_protocols = ["h2", "http/1.1"]
+    config.bind = ["0.0.0.0:8000"]
+    config.alpn_protocols = ["http/1.1"]
     config.accesslog = "-"
     config.loglevel = "WARNING"
-    
+
     asyncio.run(serve(app, config))

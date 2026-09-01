@@ -14,3 +14,24 @@ ServerTransportOptions webtunnel url=https://webtunnel.local/secret-path-wt-rese
 AssumeReachable 1
 PublishServerDescriptor 0
 ContactInfo lab-student@webtunnel.local
+
+# ---------------------------------------------------------------------------
+# FIX B-3 (docs/05-final-review.md) -- the controlled target for the positive class.
+#
+# v2.1 pointed the WebTunnel generator at duckduckgo.com, check.torproject.org and Wikipedia
+# while every negative class fetched the local mock server.  Content, RTT, response size and
+# session length were therefore confounded with the class by DESTINATION, not by protocol:
+# median duration 5.18 s vs 2.45 s, median bytes_up 55,566 vs 9-22k, and gate G4 failed at
+# p ~ 1e-48 because a public website cannot be asked to return B_down bytes.
+#
+# A private address cannot be fetched through a public Tor exit (exit policies reject RFC 1918
+# and the exit has no route into the lab network), so the fix is an onion service: the traffic
+# never leaves the Tor network, and it terminates on the SAME nginx front end and the SAME
+# FastAPI handlers the negative classes use.  The only remaining difference between the positive
+# class and direct_web_browsing is the WebTunnel transport itself, which is the research question.
+#
+# The address is stable across restarts because /var/lib/tor is a named volume in
+# docker-compose.yml.  Read it with:  docker compose exec tor-bridge cat /var/lib/tor/onion_decoy/hostname
+HiddenServiceDir /var/lib/tor/onion_decoy
+HiddenServicePort 80 172.20.0.20:8080
+HiddenServiceVersion 3

@@ -52,6 +52,11 @@ CLIENT_STACK: str = "utls-HelloChrome_Auto"
 
 #: The ALPN list every class must offer.  A class-dependent ALPN list changes the
 #: ClientHello length by exactly the size of the extension and leaks the transport (V-07).
+#:
+#: This is an ASSERTION TARGET for gate G1, not a default value.  It must never be substituted
+#: for a missing measurement: v2.1 did exactly that, so all 2,051 manifests recorded
+#: ("h2","http/1.1") while the WebSocket classes had actually offered ("http/1.1",) and the
+#: WebTunnel class had offered nothing this generator could see (B-2, docs/05-final-review.md).
 ALPN_PARITY: Tuple[str, ...] = ("h2", "http/1.1")
 
 #: Only this value means "written by the collector at capture time".
@@ -116,7 +121,11 @@ class CaptureManifest:
 
     # --- provenance ---------------------------------------------------------
     provenance: str = PROVENANCE_AUTHORITATIVE
-    alpn_offered: Tuple[str, ...] = ALPN_PARITY
+    #: B-2: what the client ACTUALLY offered, read back from the connection. Empty when the
+    #: handshake was not made by the generator (the WebTunnel path, where the TLS on the wire
+    #: belongs to the pluggable transport). Never defaulted to ALPN_PARITY -- an unmeasured
+    #: field must read as unmeasured, or the sidecar starts contradicting the wire.
+    alpn_offered: Tuple[str, ...] = ()
     mss: int = 0                    # negotiated MSS on the capture interface; 0 = unknown
     offloads_disabled: bool = False
     t_start: float = 0.0

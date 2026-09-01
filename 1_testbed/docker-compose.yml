@@ -1,4 +1,15 @@
+# WebTunnel detectability testbed.
+#
+# v2.2 changes (docs/05-final-review.md section 6):
+#   B-4  the legitimate classes are now fronted by the SAME nginx build, with the SAME shared
+#        TLS parameter file, as the WebTunnel bridge. The FastAPI app speaks plain HTTP behind
+#        it and no longer terminates TLS itself.
+#   B-3  the bridge hosts a v3 onion service pointing at that same nginx front end, so the
+#        positive class fetches the same content, from the same server, under the same byte
+#        budgets as the negatives -- instead of the live public web.
+
 services:
+  # ---- WebTunnel bridge front end (nginx) --------------------------------
   webtunnel-server:
     image: nginx:alpine
     container_name: webtunnel-server
@@ -6,73 +17,86 @@ services:
     networks:
       testbed-net:
         ipv4_address: 172.20.0.10
-        aliases:
-          - webtunnel.local
+        aliases: [webtunnel.local, decoy.local]
     volumes:
       - ./webtunnel_server/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./common_conf/tls_common.conf:/etc/nginx/conf.d/tls_common.conf:ro
       - ./webtunnel_server/certs:/etc/nginx/certs:ro
       - ./webtunnel_server/decoy_web:/var/www/html:ro
-    ports:
-      - "8443:443"
-      - "8080:80"
-    depends_on:
-      - tor-bridge
+    ports: ["8443:443", "8080:80"]
+    depends_on: [tor-bridge]
 
+  # ---- Tor bridge + decoy onion service ----------------------------------
   tor-bridge:
-    build:
-      context: ./tor_bridge
+    build: { context: ./tor_bridge }
     container_name: tor-bridge
     restart: unless-stopped
     networks:
-      testbed-net:
-        ipv4_address: 172.20.0.15
-    expose:
-      - "15000"
-      - "9001"
+      testbed-net: { ipv4_address: 172.20.0.15 }
+    volumes:
+      # Named volume so the onion address survives a rebuild (FIX B-3).
+      - tor-bridge-data:/var/lib/tor
+    expose: ["15000", "9001"]
 
+  # ---- Legitimate traffic: application, plain HTTP only ------------------
+  legitimate-app:
+    build: { context: ./legitimate_servers }
+    container_name: legitimate-app
+    restart: unless-stopped
+    networks:
+      testbed-net: { ipv4_address: 172.20.0.21 }
+    volumes:
+      - ./legitimate_servers/server.py:/app/server.py:ro
+    expose: ["8000"]
+
+  # ---- Legitimate traffic: nginx TLS front end (FIX B-4) -----------------
+  # Same image, same tls_common.conf and same certificate as webtunnel-server, so the server
+  # side of the handshake is byte-identical for the positive and the negative classes.
+  #   8443  ALPN {h2, http/1.1}   -> HTTP/2 classes
+  #   8444  ALPN {http/1.1}       -> WebSocket classes (nginx has no RFC 8441 support)
+  #   8080  plain HTTP            -> reached only through the onion service
   legitimate-servers:
-    build:
-      context: ./legitimate_servers
+    image: nginx:alpine
     container_name: legitimate-servers
     restart: unless-stopped
     networks:
       testbed-net:
         ipv4_address: 172.20.0.20
-        aliases:
-          - legitimate.local
+        aliases: [legitimate.local, legitimate-servers]
     volumes:
-      - ./webtunnel_server/certs:/app/certs:ro
-      - ./legitimate_servers/server.py:/app/server.py:ro
-    ports:
-      - "9443:8443"
+      - ./legitimate_servers/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./common_conf/tls_common.conf:/etc/nginx/conf.d/tls_common.conf:ro
+      - ./webtunnel_server/certs:/etc/nginx/certs:ro
+    ports: ["9443:8443", "9444:8444"]
+    depends_on: [legitimate-app]
 
+  # ---- Capture client ----------------------------------------------------
   client:
-    build:
-      context: ./client
+    build: { context: ./client }
     container_name: testbed-client
     restart: unless-stopped
-    cap_add:
-      - NET_ADMIN
+    cap_add: [NET_ADMIN]
     networks:
-      testbed-net:
-        ipv4_address: 172.20.0.30
+      testbed-net: { ipv4_address: 172.20.0.30 }
     environment:
       BRIDGE_IP: "172.20.0.10"
       BRIDGE_PORT: "443"
       BRIDGE_ADDR: "172.20.0.10:443"
       BRIDGE_URL: "https://webtunnel.local/secret-path-wt-research-2026"
       CAPTURE_IFACE: "eth0"
-      # P0.3: set to " utls-imitate=hellochrome_auto" (leading space) only after
+      # Set to " utls-imitate=hellochrome_auto" (leading space) only after
       # probe_utls_support.sh confirms this webtunnel build parses the argument.
+      # UNTIL THEN GATE G1 CANNOT PASS -- see docs/05-final-review.md B-1.
       WEBTUNNEL_EXTRA_ARGS: ""
     volumes:
       - ./webtunnel_server/certs/ca.crt:/usr/local/share/ca-certificates/ca.crt:ro
       - ./router/netem_profiles.sh:/app/netem_profiles.sh:ro
       - ../data/raw_pcap:/data/raw_pcap
     working_dir: /app
-    depends_on:
-      - webtunnel-server
-      - legitimate-servers
+    depends_on: [webtunnel-server, legitimate-servers]
+
+volumes:
+  tor-bridge-data:
 
 networks:
   testbed-net:
