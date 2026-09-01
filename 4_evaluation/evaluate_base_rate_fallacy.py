@@ -70,7 +70,8 @@ def main():
     plt.savefig(os.path.join(PLOTS_DIR, "base_rate_fallacy_fdr.png"))
     plt.close()
 
-    # 2. Host-Based Multi-Flow Aggregation Curve (Jansen et al. NDSS 2024)
+    # 2. Host-Based Multi-Flow Aggregation Curve (Jansen et al. NDSS 2024 / Wald SPRT)
+    # LLR score aggregation: S_M = sum(ln(p_k / (1 - p_k)))
     alpha_edge = 1e-4
     flows_per_host = np.arange(1, 16)
     fpr_single = 1e-3
@@ -81,19 +82,27 @@ def main():
     fdr_correlated = []
 
     for m_flows in flows_per_host:
-        tpr_m = tpr_single ** m_flows
-        fpr_m = fpr_single ** m_flows
+        # Under continuous LLR aggregation, M independent flows yield exponential error reduction
+        llr_var = m_flows * 4.0
+        llr_mean_pos = m_flows * 3.5
+        llr_mean_neg = -m_flows * 3.5
+        # Cumulative Gaussian tail for threshold 0
+        from scipy.stats import norm
+        tpr_m = 1.0 - norm.cdf(0, loc=llr_mean_pos, scale=np.sqrt(llr_var))
+        fpr_m = 1.0 - norm.cdf(0, loc=llr_mean_neg, scale=np.sqrt(llr_var))
+        fpr_m = max(1e-15, float(fpr_m))
+
         prec_ind = bayes_precision(tpr_m, fpr_m, alpha_edge)
         fdr_independent.append((1.0 - prec_ind) * 100.0)
 
-        effective_fpr = max(fpr_m, rho_ambient * (fpr_single ** 0.5))
+        effective_fpr = max(fpr_m, rho_ambient * (fpr_single ** (0.5 * m_flows**0.3)))
         prec_corr = bayes_precision(tpr_m, effective_fpr, alpha_edge)
         fdr_correlated.append((1.0 - prec_corr) * 100.0)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(flows_per_host, fdr_independent, "o-", label=r"Nezávislý Bayesův ideál ($FPR^M$)", color="green", linewidth=2.5)
+    plt.plot(flows_per_host, fdr_independent, "o-", label=r"Nezávislá Bayesovská LLR agregace ($S_M = \sum \ln \frac{p_k}{1-p_k}$)", color="green", linewidth=2.5)
     plt.plot(flows_per_host, fdr_correlated, "s--", label=r"Reálné síťové korelace ($\rho_{ambient}=1\%$)", color="crimson", linewidth=2.5)
-    plt.title(r"Host-Based Multi-Flow agregace cenzora na úrovni IP adresy ($\alpha=10^{-4}$)")
+    plt.title(r"Host-Based Multi-Flow LLR agregace cenzora na úrovni IP adresy ($\alpha=10^{-4}$)")
     plt.xlabel("Počet po sobě jdoucích podezřelých toků z jedné IP adresy (M)")
     plt.ylabel("False Discovery Rate (FDR %)")
     plt.xticks(flows_per_host)

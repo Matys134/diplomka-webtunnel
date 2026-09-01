@@ -108,8 +108,13 @@ class WebTunnelTransformer(nn.Module):
         cls_tokens = self.cls_token.expand(B, -1, -1)  # [B, 1, d_model]
         x_with_cls = torch.cat((cls_tokens, proj), dim=1)  # [B, L+1, d_model]
 
+        # Construct key padding mask (True for zero-padded time steps)
+        is_pad = (x.abs().sum(dim=-1) < 1e-6)  # [B, L]
+        cls_pad = torch.zeros((B, 1), dtype=torch.bool, device=x.device)
+        key_padding_mask = torch.cat([cls_pad, is_pad], dim=1)  # [B, L+1]
+
         encoded = self.pos_encoder(x_with_cls)
-        h = self.transformer_encoder(encoded)  # [B, L+1, d_model]
+        h = self.transformer_encoder(encoded, src_key_padding_mask=key_padding_mask)  # [B, L+1, d_model]
 
         # Extract [CLS] representation
         cls_repr = h[:, 0, :]  # [B, d_model]
