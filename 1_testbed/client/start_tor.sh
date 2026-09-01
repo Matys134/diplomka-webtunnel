@@ -32,7 +32,7 @@ fi
 
 # Give the PT a moment to settle, then snapshot the socket.
 for _ in $(seq 1 20); do
-    mapfile -t rows < <(ss -Htn state connected "dst ${BRIDGE_IP}" "dport = :${BRIDGE_PORT}" 2>/dev/null \
+    mapfile -t rows < <(ss -Htn state established "dst ${BRIDGE_IP}" "dport = :${BRIDGE_PORT}" 2>/dev/null \
                         | awk '{print $3}' | grep -E '^[0-9.]+:[0-9]+$')
     [ "${#rows[@]}" -ge 1 ] && break
     sleep 0.25

@@ -150,11 +150,11 @@ class Collector:
     def _start_tcpdump(self, pcap: str, server_ip: str, server_port: int) -> None:
         bpf = f"tcp and host {server_ip} and port {server_port}"
         dexec(f"tcpdump -i eth0 -s 0 -U -w {pcap} '{bpf}'", detach=True)
-        time.sleep(0.35)
+        time.sleep(0.4)
 
     def _stop_tcpdump(self) -> None:
-        dexec("pkill -f tcpdump")
-        time.sleep(0.25)
+        dexec("pkill -2 -f tcpdump 2>/dev/null || pkill -15 -f tcpdump 2>/dev/null || true")
+        time.sleep(0.4)
 
     # -- one sample -------------------------------------------------------
     def capture(self, cls: str, mode: str, dest_id: str, server_ip: str, server_port: int,

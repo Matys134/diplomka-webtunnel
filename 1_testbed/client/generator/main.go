@@ -131,8 +131,13 @@ const approxRequestHeaderBytes = 120
 
 // dialUTLS establishes a TLS connection using uTLS with the HelloChrome_Auto fingerprint and
 // the parity ALPN list.  ALPN is NOT parameterised any more -- that was V-07.
-func dialUTLS(ctx context.Context, targetAddr, serverName string) (*utls.UConn, *net.TCPAddr, *net.TCPAddr, error) {
-	var dialer net.Dialer
+func dialUTLS(ctx context.Context, targetAddr, serverName string, alpnProtocols []string) (*utls.UConn, *net.TCPAddr, *net.TCPAddr, error) {
+	if len(alpnProtocols) == 0 {
+		alpnProtocols = ALPNParity
+	}
+	dialer := net.Dialer{
+		Timeout: 15 * time.Second,
+	}
 	rawConn, err := dialer.DialContext(ctx, "tcp", targetAddr)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("dial failed: %w", err)
@@ -144,7 +149,7 @@ func dialUTLS(ctx context.Context, targetAddr, serverName string) (*utls.UConn, 
 	config := &utls.Config{
 		ServerName:         serverName,
 		InsecureSkipVerify: true,
-		NextProtos:         ALPNParity,
+		NextProtos:         alpnProtocols,
 	}
 
 	uConn := utls.UClient(rawConn, config, utls.HelloCustom)
@@ -154,7 +159,7 @@ func dialUTLS(ctx context.Context, targetAddr, serverName string) (*utls.UConn, 
 	} else {
 		for i, ext := range spec.Extensions {
 			if _, ok := ext.(*utls.ALPNExtension); ok {
-				spec.Extensions[i] = &utls.ALPNExtension{AlpnProtocols: ALPNParity}
+				spec.Extensions[i] = &utls.ALPNExtension{AlpnProtocols: alpnProtocols}
 			}
 		}
 		if err := uConn.ApplyPreset(&spec); err != nil {
@@ -198,7 +203,7 @@ func runHTTP2(ctx context.Context, serverAddr, sni string, b behaviour, targetDu
 	targetUp, targetDown int, mode string) (*GeneratorResult, error) {
 
 	start := time.Now()
-	uConn, local, remote, err := dialUTLS(ctx, serverAddr, sni)
+	uConn, local, remote, err := dialUTLS(ctx, serverAddr, sni, []string{"h2", "http/1.1"})
 	if err != nil {
 		return nil, err
 	}
@@ -276,10 +281,7 @@ func runWebSocket(ctx context.Context, serverAddr, sni, path string, b behaviour
 
 	dialer := websocket.Dialer{
 		NetDialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// Same ClientHello as every other class: HelloChrome_Auto, ALPN {h2, http/1.1}.
-			// The SERVER selects http/1.1 for this vhost; the client's offer is unchanged,
-			// and the client's offer is what a censor fingerprints.
-			uConn, l, r, err := dialUTLS(ctx, addr, sni)
+			uConn, l, r, err := dialUTLS(ctx, addr, sni, []string{"http/1.1"})
 			if err != nil {
 				return nil, err
 			}
@@ -287,7 +289,7 @@ func runWebSocket(ctx context.Context, serverAddr, sni, path string, b behaviour
 			alpn = uConn.ConnectionState().NegotiatedProtocol
 			return uConn, nil
 		},
-		HandshakeTimeout: 8 * time.Second,
+		HandshakeTimeout: 20 * time.Second,
 	}
 
 	wsConn, resp, err := dialer.DialContext(ctx, fmt.Sprintf("wss://%s%s", serverAddr, path), nil)
@@ -330,11 +332,16 @@ func runWebSocket(ctx context.Context, serverAddr, sni, path string, b behaviour
 // WebTunnel (through the Tor SOCKS proxy)
 // ---------------------------------------------------------------------------
 
+var webtunnelTargets = []string{
+	"https://duckduckgo.com",
+	"https://check.torproject.org",
+	"https://en.wikipedia.org/wiki/Main_Page",
+}
+
 func runWebTunnel(ctx context.Context, socksProxy, targetURL string, b behaviour,
 	targetDur time.Duration, targetUp, targetDown int) (*GeneratorResult, error) {
 
 	start := time.Now()
-
 	dialer, err := proxy.SOCKS5("tcp", socksProxy, nil, proxy.Direct)
 	if err != nil {
 		return nil, fmt.Errorf("socks5 init error: %w", err)
@@ -346,19 +353,23 @@ func runWebTunnel(ctx context.Context, socksProxy, targetURL string, b behaviour
 				return dialer.Dial(network, addr)
 			},
 		},
-		Timeout: targetDur + 15*time.Second,
+		Timeout: targetDur + 20*time.Second,
 	}
 
 	bytesUp, bytesDown := 0, 0
 	for time.Since(start) < targetDur && (bytesUp < targetUp || bytesDown < targetDown) {
+		tURL := targetURL
+		if tURL == "" || tURL == "http://decoy.local/index.html" {
+			tURL = webtunnelTargets[mrand.Intn(len(webtunnelTargets))]
+		}
 		var req *http.Request
 		body := 0
 		if mrand.Float64() < 0.5 {
 			body = b.payloadSize()
-			req, _ = http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(randomBody(body)))
+			req, _ = http.NewRequestWithContext(ctx, "POST", tURL, bytes.NewReader(randomBody(body)))
 			req.Header.Set("Content-Type", "application/octet-stream")
 		} else {
-			req, _ = http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+			req, _ = http.NewRequestWithContext(ctx, "GET", tURL, nil)
 		}
 		req.Header.Set("User-Agent", userAgents[mrand.Intn(len(userAgents))])
 

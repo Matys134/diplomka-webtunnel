@@ -1,0 +1,30 @@
+{
+  "websocket_ticker": {
+    "ws dial error": 5,
+    "socket_reused_from": 26
+  },
+  "video_streaming": {
+    "pcap_too_small": 3,
+    "dial failed": 5,
+    "socket_reused_from": 18
+  },
+  "webtunnel": {
+    "pcap_too_small": 1,
+    "no bytes received through the tunnel": 4,
+    "socket_reused_from": 18,
+    "tor_bootstrap_timeout": 5
+  },
+  "websocket_chat": {
+    "pcap_too_small": 1,
+    "socket_reused_from": 26,
+    "ws dial error": 6
+  },
+  "web_assets": {
+    "dial failed": 3,
+    "socket_reused_from": 20
+  },
+  "direct_web_browsing": {
+    "dial failed": 1,
+    "socket_reused_from": 31
+  }
+}

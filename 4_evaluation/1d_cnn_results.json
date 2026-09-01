@@ -4,10 +4,10 @@
     "recall": 1.0,
     "f1_score": 1.0,
     "roc_auc": 1.0,
-    "pr_auc": 1.0000000000000002,
+    "pr_auc": 0.9999999999999999,
     "threshold": 0.5,
-    "latency_ms_per_flow": 0.00168188309643289,
-    "throughput_flows_per_sec": 594571.6453901597,
-    "training_time_sec": 2.3718743324279785,
-    "best_val_loss": 5.33684847039436e-06
+    "latency_ms_per_flow": 0.0039619006592423855,
+    "throughput_flows_per_sec": 252404.10752530704,
+    "training_time_sec": 2.7772293090820312,
+    "best_val_loss": 7.027592810216722e-05
 }
