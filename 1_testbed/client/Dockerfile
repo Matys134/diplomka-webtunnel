@@ -5,6 +5,11 @@ RUN git clone --depth 1 https://gitlab.torproject.org/tpo/anti-censorship/plugga
     sed -i 's/|| ip.IsLoopback()//g' main/client/main.go && \
     cd main/client && CGO_ENABLED=0 go build -ldflags "-s -w" -o /webtunnel-client
 
+WORKDIR /src/generator
+COPY generator/go.mod ./
+COPY generator/main.go ./
+RUN go mod tidy && CGO_ENABLED=0 go build -ldflags "-s -w" -o /traffic-generator .
+
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tor \
@@ -14,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     tcpdump \
     iproute2 \
+    ethtool \
     python3 \
     python3-pip \
     python3-requests \
@@ -24,9 +30,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /webtunnel-client /usr/local/bin/webtunnel-client
+COPY --from=builder /traffic-generator /usr/local/bin/traffic-generator
 COPY torrc /etc/tor/torrc
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh /usr/local/bin/webtunnel-client
+RUN chmod +x /entrypoint.sh /usr/local/bin/webtunnel-client /usr/local/bin/traffic-generator
 
 EXPOSE 9050
 ENTRYPOINT ["/entrypoint.sh"]

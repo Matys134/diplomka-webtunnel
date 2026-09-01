@@ -1,13 +1,13 @@
 {
-    "accuracy": 0.9984214680347278,
-    "precision": 0.9911894273127754,
+    "accuracy": 1.0,
+    "precision": 1.0,
     "recall": 1.0,
-    "f1_score": 0.995575221238938,
+    "f1_score": 1.0,
     "roc_auc": 1.0,
-    "pr_auc": 1.0,
-    "threshold": 0.9281079173088074,
-    "latency_ms_per_flow": 0.00033379477508393307,
-    "throughput_flows_per_sec": 2995852.765366231,
-    "training_time_sec": 0.341916561126709,
-    "best_iteration": 182
+    "pr_auc": 1.0000000000000002,
+    "threshold": 0.9926651120185852,
+    "latency_ms_per_flow": 0.0022572466108590466,
+    "throughput_flows_per_sec": 443017.61056556745,
+    "training_time_sec": 0.21125078201293945,
+    "best_iteration": 299
 }

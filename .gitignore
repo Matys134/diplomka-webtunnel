@@ -17,3 +17,5 @@ Thumbs.db
 
 # Large local run logs
 *.log
+data/*.zip
+data/raw_pcap_v1_archive

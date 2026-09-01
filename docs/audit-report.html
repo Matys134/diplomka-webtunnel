@@ -1,0 +1,808 @@
+<title>WebTunnel Thesis Red Team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --ground:#EDF0F2; --surface:#FFFFFF; --surface-2:#F6F8F9; --surface-3:#E7ECEE;
+  --ink:#13181E; --ink-2:#414B57; --ink-3:#6B7683;
+  --line:#D5DCE1; --line-2:#C0CAD1;
+  --accent:#0E6B74; --accent-2:#0A4E55; --accent-soft:#DCEDEE;
+  --crit:#A32017; --crit-soft:#F6E3E1;
+  --major:#8F5406; --major-soft:#F7EBDA;
+  --minor:#3F5578; --minor-soft:#E4E9F1;
+  --ok:#1B6A48; --ok-soft:#DDEEE5;
+  --shadow:0 1px 2px rgba(19,24,30,.05),0 8px 24px -16px rgba(19,24,30,.25);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0C1015; --surface:#151A21; --surface-2:#1A2028; --surface-3:#222A34;
+    --ink:#E7EBF0; --ink-2:#A6B1BE; --ink-3:#78838F;
+    --line:#242D37; --line-2:#334050;
+    --accent:#41B2B8; --accent-2:#7FD3D6; --accent-soft:#0E3138;
+    --crit:#E8756B; --crit-soft:#37201E;
+    --major:#D9A441; --major-soft:#33291580;
+    --minor:#93AACE; --minor-soft:#1B2434;
+    --ok:#57C495; --ok-soft:#12291F;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0C1015; --surface:#151A21; --surface-2:#1A2028; --surface-3:#222A34;
+  --ink:#E7EBF0; --ink-2:#A6B1BE; --ink-3:#78838F;
+  --line:#242D37; --line-2:#334050;
+  --accent:#41B2B8; --accent-2:#7FD3D6; --accent-soft:#0E3138;
+  --crit:#E8756B; --crit-soft:#37201E;
+  --major:#D9A441; --major-soft:#33291580;
+  --minor:#93AACE; --minor-soft:#1B2434;
+  --ok:#57C495; --ok-soft:#12291F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+  font-size:17px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4,.ui{font-family:Archivo,"Helvetica Neue",Arial,sans-serif}
+code,kbd,pre,.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+
+.wrap{max-width:1140px;margin:0 auto;padding:0 28px}
+.col{max-width:70ch}
+section{padding:64px 0;border-top:1px solid var(--line)}
+section:first-of-type{border-top:0}
+
+/* ---------- masthead ---------- */
+.mast{background:var(--surface);border-bottom:1px solid var(--line)}
+.mast-inner{padding:56px 0 40px}
+.kicker{
+  font-family:Archivo,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--accent);margin:0 0 18px
+}
+h1{
+  font-size:clamp(38px,6.2vw,66px);line-height:1.02;font-weight:800;letter-spacing:-.028em;
+  margin:0 0 20px;text-wrap:balance;max-width:16ch
+}
+.standfirst{font-size:20px;line-height:1.5;color:var(--ink-2);max-width:60ch;margin:0}
+.meta{
+  display:flex;flex-wrap:wrap;gap:0;margin-top:40px;
+  border:1px solid var(--line);border-radius:3px;overflow:hidden;background:var(--surface-2)
+}
+.meta div{
+  flex:1 1 168px;padding:14px 18px;border-right:1px solid var(--line);
+  font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.45
+}
+.meta div:last-child{border-right:0}
+.meta b{display:block;font-family:Archivo,sans-serif;font-weight:700;font-size:10.5px;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-bottom:5px}
+
+/* ---------- verdict ---------- */
+.verdict{
+  background:var(--surface);border:1px solid var(--line);border-radius:4px;
+  box-shadow:var(--shadow);overflow:hidden;margin-top:-1px
+}
+.verdict-top{display:grid;grid-template-columns:190px 1fr;gap:0}
+.score{
+  background:var(--crit-soft);border-right:1px solid var(--line);
+  padding:30px 24px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start
+}
+.score .n{font-family:Archivo,sans-serif;font-size:62px;font-weight:800;line-height:.9;color:var(--crit);letter-spacing:-.04em}
+.score .d{font-family:Archivo,sans-serif;font-size:14px;font-weight:600;color:var(--crit);opacity:.8}
+.score .l{font-family:Archivo,sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink-2);margin-top:14px}
+.verdict-body{padding:28px 30px}
+.verdict-body h2{margin:0 0 12px;font-size:21px;font-weight:700;letter-spacing:-.015em}
+.verdict-body p{margin:0 0 14px;color:var(--ink-2);font-size:16.5px}
+.verdict-body p:last-child{margin-bottom:0}
+.headline{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.headline li{
+  display:grid;grid-template-columns:34px 1fr;gap:16px;padding:18px 30px;
+  border-bottom:1px solid var(--line);align-items:start
+}
+.headline li:last-child{border-bottom:0}
+.headline .hn{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;color:var(--crit);padding-top:3px}
+.headline strong{font-family:Archivo,sans-serif;font-weight:700;font-size:15.5px;display:block;margin-bottom:2px}
+.headline span{font-size:15.5px;color:var(--ink-2)}
+
+/* ---------- typography ---------- */
+h2.sec{
+  font-size:clamp(27px,3.6vw,36px);font-weight:800;letter-spacing:-.025em;
+  margin:0 0 10px;text-wrap:balance
+}
+.sec-no{
+  font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;color:var(--accent);
+  letter-spacing:.1em;display:block;margin-bottom:12px
+}
+.lede{font-size:19px;color:var(--ink-2);margin:0 0 36px;max-width:62ch}
+h3{font-size:20px;font-weight:700;letter-spacing:-.012em;margin:44px 0 12px;text-wrap:balance}
+h4{font-size:15px;font-weight:700;letter-spacing:-.005em;margin:28px 0 8px}
+p{margin:0 0 16px}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+strong{font-weight:600}
+ul.plain{margin:0 0 18px;padding-left:22px}
+ul.plain li{margin-bottom:9px}
+code{
+  font-size:.86em;background:var(--surface-3);padding:1.5px 5px;border-radius:3px;
+  border:1px solid var(--line);white-space:nowrap
+}
+
+/* ---------- findings ---------- */
+.finding{
+  background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line-2);
+  border-radius:3px;margin:0 0 18px;overflow:hidden
+}
+.finding.crit{border-left-color:var(--crit)}
+.finding.major{border-left-color:var(--major)}
+.finding.minor{border-left-color:var(--minor)}
+.f-head{padding:18px 22px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+.fid{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;color:var(--ink-3)}
+.chip{
+  font-family:Archivo,sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 8px;border-radius:2px;white-space:nowrap
+}
+.chip.crit{background:var(--crit-soft);color:var(--crit)}
+.chip.major{background:var(--major-soft);color:var(--major)}
+.chip.minor{background:var(--minor-soft);color:var(--minor)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.file{background:var(--surface-3);color:var(--ink-2);font-family:"JetBrains Mono",monospace;
+  font-size:10.5px;letter-spacing:0;text-transform:none;font-weight:500}
+.f-title{font-family:Archivo,sans-serif;font-weight:700;font-size:18.5px;letter-spacing:-.012em;
+  padding:0 22px 12px;margin:0;width:100%;text-wrap:balance}
+.f-body{padding:0 22px 20px;max-width:74ch}
+.f-body p:last-child{margin-bottom:0}
+
+/* evidence */
+.ev{
+  background:var(--surface-2);border:1px solid var(--line);border-radius:3px;
+  margin:16px 0 4px;overflow:hidden
+}
+.ev-l{
+  font-family:Archivo,sans-serif;font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ink-3);padding:9px 14px;border-bottom:1px solid var(--line);background:var(--surface-3)
+}
+.ev pre{
+  margin:0;padding:14px;overflow-x:auto;font-size:12.5px;line-height:1.6;color:var(--ink-2);
+  font-variant-numeric:tabular-nums
+}
+.ev pre b{color:var(--ink);font-weight:700}
+.ev pre .hi{color:var(--crit);font-weight:700}
+.ev pre .go{color:var(--ok);font-weight:700}
+
+/* tables */
+.tw{overflow-x:auto;margin:20px 0;border:1px solid var(--line);border-radius:3px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th{
+  font-family:Archivo,sans-serif;font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--ink-3);text-align:left;padding:11px 14px;border-bottom:1px solid var(--line-2);
+  background:var(--surface-2);white-space:nowrap
+}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+td.k{color:var(--ink);font-weight:600;font-family:Archivo,sans-serif;font-size:13.5px}
+td .mono{font-size:12.5px}
+
+/* figure */
+figure{margin:26px 0;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:22px}
+figcaption{font-size:13.5px;color:var(--ink-3);margin-top:14px;line-height:1.5}
+.sep-row{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;margin-bottom:9px;font-size:13px}
+.sep-row .lab{font-family:Archivo,sans-serif;font-weight:600;font-size:12.5px;color:var(--ink-2);text-align:right}
+.track{position:relative;height:22px;background:var(--surface-2);border:1px solid var(--line);border-radius:2px}
+.dot{position:absolute;top:50%;transform:translate(-50%,-50%);height:13px;border-radius:2px;
+  background:var(--minor);min-width:4px}
+.dot.wt{background:var(--crit)}
+.axis{display:grid;grid-template-columns:150px 1fr;gap:12px;margin-top:4px}
+.axis .ticks{position:relative;height:20px;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--ink-3)}
+.axis .ticks span{position:absolute;transform:translateX(-50%);top:2px}
+
+/* callout */
+.call{
+  background:var(--accent-soft);border:1px solid var(--accent);border-radius:3px;
+  padding:20px 22px;margin:26px 0
+}
+.call h4{margin:0 0 8px;color:var(--accent-2);font-size:14px;letter-spacing:.02em}
+.call p{margin:0 0 12px;font-size:16px}
+.call p:last-child{margin-bottom:0}
+:root[data-theme="dark"] .call h4,
+:root:not([data-theme="light"]) .call h4{color:var(--accent-2)}
+
+/* action list */
+.prio{margin:0 0 34px}
+.prio-h{
+  display:flex;align-items:baseline;gap:12px;margin:0 0 6px;padding-bottom:8px;border-bottom:2px solid var(--line-2)
+}
+.prio-h .tag{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:13px;padding:3px 8px;border-radius:2px}
+.prio-h .tag.p0{background:var(--crit-soft);color:var(--crit)}
+.prio-h .tag.p1{background:var(--major-soft);color:var(--major)}
+.prio-h .tag.p2{background:var(--minor-soft);color:var(--minor)}
+.prio-h h3{margin:0;font-size:18px}
+.prio-h .note{font-size:13.5px;color:var(--ink-3);margin-left:auto;font-family:Archivo,sans-serif}
+ol.acts{list-style:none;counter-reset:a;margin:0;padding:0}
+ol.acts li{
+  counter-increment:a;display:grid;grid-template-columns:32px 1fr;gap:14px;
+  padding:15px 0;border-bottom:1px solid var(--line);font-size:16px
+}
+ol.acts li::before{
+  content:counter(a,decimal-leading-zero);font-family:"JetBrains Mono",monospace;font-size:12px;
+  font-weight:700;color:var(--ink-3);padding-top:4px
+}
+ol.acts b{font-family:Archivo,sans-serif;font-weight:700;font-size:16px;display:block;margin-bottom:3px;color:var(--ink)}
+ol.acts span{color:var(--ink-2)}
+
+/* Q&A */
+details.qa{
+  background:var(--surface);border:1px solid var(--line);border-radius:3px;margin-bottom:12px;overflow:hidden
+}
+details.qa[open]{border-color:var(--line-2)}
+details.qa summary{
+  cursor:pointer;padding:17px 22px;font-family:Archivo,sans-serif;font-weight:700;font-size:17px;
+  letter-spacing:-.01em;list-style:none;display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start
+}
+details.qa summary::-webkit-details-marker{display:none}
+details.qa summary::before{
+  content:"?";font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--accent);
+  border:1px solid var(--accent);border-radius:2px;width:22px;height:22px;
+  display:grid;place-items:center;font-weight:700;margin-top:1px
+}
+details.qa[open] summary::before{content:"!";background:var(--accent);color:var(--surface)}
+details.qa .ans{padding:0 22px 20px 60px;max-width:72ch}
+details.qa .ans p:last-child{margin-bottom:0}
+
+.keep{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-top:24px}
+.keep div{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:18px 20px}
+.keep h4{margin:0 0 6px;color:var(--ok);font-size:14px}
+.keep p{margin:0;font-size:15px;color:var(--ink-2)}
+
+footer{background:var(--surface);border-top:1px solid var(--line);padding:44px 0 60px;margin-top:20px}
+footer p{font-size:14.5px;color:var(--ink-3);max-width:74ch}
+footer h4{margin:0 0 10px;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
+
+@media (max-width:720px){
+  body{font-size:16px}
+  .wrap{padding:0 20px}
+  section{padding:48px 0}
+  .verdict-top{grid-template-columns:1fr}
+  .score{border-right:0;border-bottom:1px solid var(--line);flex-direction:row;align-items:baseline;gap:12px}
+  .score .l{margin-top:0}
+  .sep-row,.axis{grid-template-columns:104px 1fr}
+  .headline li{padding:16px 20px}
+  details.qa .ans{padding-left:22px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<header class="mast">
+  <div class="wrap mast-inner">
+    <p class="kicker">Independent technical audit &middot; Adversarial peer review</p>
+    <h1>WebTunnel Thesis Red Team</h1>
+    <p class="standfirst">A line-by-line audit of the testbed, dataset, pipeline and evaluation suite behind <em>Analýza odolnosti protokolu WebTunnel v prostředí strukturálně podobného legitimního provozu</em> — with every claim re-derived from the raw captures.</p>
+    <div class="meta">
+      <div><b>Corpus audited</b>9,000 PCAPs · 4.1 GB<br>18 code modules · 6 LaTeX tables</div>
+      <div><b>Re-analysis</b>8,174 captures re-parsed<br>4 extraction variants · 12 probes</div>
+      <div><b>Findings</b>7 critical · 6 major · 5 minor</div>
+      <div><b>Reviewer stance</b>USENIX / NDSS PC<br>Reject-and-resubmit posture</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap" style="padding-top:34px">
+  <div class="verdict">
+    <div class="verdict-top">
+      <div class="score">
+        <div><span class="n">4</span><span class="d">/10</span></div>
+        <div class="l">Practical part, as it stands</div>
+      </div>
+      <div class="verdict-body">
+        <h2>The infrastructure is excellent. The science currently is not.</h2>
+        <p>The orchestration, reproducible pipeline, XAI layer, LaTeX/figure automation and the roadmap's literature awareness are all well above a typical MSc thesis — an 8/10 engineering artefact. But the experiment it runs is degenerate: the two classes are separable by a single constant, so every downstream result (low-FPR benchmark, countermeasure evaluation, cascaded pipeline, base-rate projection) measures nothing about WebTunnel.</p>
+        <p>This is recoverable. Nearly all of it comes down to how the data was captured, not to the models. Re-collection plus about ten controls puts this at a defensible 8/10 — and two of the corrections below are stronger results than what is currently claimed.</p>
+      </div>
+    </div>
+    <ul class="headline">
+      <li><span class="hn">01</span><span><strong>The positive class is ~13 TCP connections, not 1,500 flows.</strong>Tor holds one persistent connection to the bridge, so 500 consecutive "sessions" are 500 windows carved out of the same socket. Train and test share client port <code>54502</code>.</span></li>
+      <li><span class="hn">02</span><span><strong>A single feature reaches 100.00% test accuracy, AUC 1.0000.</strong><code>up_len_p50</code> is exactly 558 B for the 1st, 50th and 99th percentile of every WebTunnel capture, versus 40.5–81 B for every negative. Zero overlap. No model is doing any work.</span></li>
+      <li><span class="hn">03</span><span><strong>The reported countermeasure effect is a bug, and the defences do nothing.</strong>Feeding <em>undefended</em> traffic through the same recomputation path already drops recall to 24.9% — below the 36.0% reported "after defence". Retrain the censor and both defences give 100% recall, AUC 1.0.</span></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================= STEP 1 ============================= -->
+<section class="wrap" id="s1">
+  <div class="col">
+    <span class="sec-no">STEP 01</span>
+    <h2 class="sec">Assignment protocol versus roadmap evolution</h2>
+    <p class="lede">The roadmap is the strongest document in the project. Its problem is that the implementation quietly dropped the three commitments that mattered most.</p>
+  </div>
+
+  <div class="col">
+    <h3>How the roadmap evolved</h3>
+    <p>Draft A (<em>Resilience Research</em>) is theory-first: Bayesian derivation of the base-rate problem, threat-model decomposition, a leakage taxonomy. Draft B (<em>Traffic Analysis</em>) is engineering-first: a concrete four-namespace topology, exact <code>tc-netem</code> invocations, PyTorch layer specifications. The synthesis in <code>ULTIMATNI_ROADMAPA</code> is genuinely good work — §3 ("Kritická dekonstrukce rizik") identifies three traps that most published papers in this space walk straight into:</p>
+    <ul class="plain">
+      <li><strong>Trap 1 — TrafficFormer is not downloadable.</strong> Correct, and correctly resolved: a lightweight sequence Transformer instead of pretending a pretrained checkpoint exists. This is honest and defensible.</li>
+      <li><strong>Trap 2 — the uTLS/JA4 stack asymmetry.</strong> Correctly diagnosed. Two remedies were specified: Mode A (strip the handshake) or Mode B (generate negatives with the same client stack). <em>Neither was implemented.</em></li>
+      <li><strong>Trap 3 — flow-level versus host-based aggregation.</strong> Correctly diagnosed, with the right equation. The equation was never implemented (see F-14).</li>
+    </ul>
+    <p>So the roadmap scores well as analysis and badly as a contract. Three specific commitments were made and silently abandoned:</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Roadmap commitment</th><th>What shipped</th><th>Consequence</th></tr></thead>
+      <tbody>
+        <tr><td class="k">§5.2 Destination-Split — test destinations must never appear in training</td><td>One bridge IP, one mock-server IP. A destination split is arithmetically impossible.</td><td>No evidence the models learn <em>protocol</em> rather than <em>server</em>.</td></tr>
+        <tr><td class="k">§3.2 Mode A or Mode B for the TLS-stack asymmetry</td><td>WebTunnel = Go <code>crypto/tls</code>; negatives = Python OpenSSL via <code>httpx</code>/<code>websockets</code>. Handshake stripping is an ablation only, and it is mis-implemented.</td><td>Headline "full flow" numbers are contaminated by a 267 B vs 517 B ClientHello.</td></tr>
+        <tr><td class="k">§4.1 Three client behaviour profiles over WebTunnel (browsing / bulk / interactive shell)</td><td>One function, <code>run_webtunnel_request()</code>. The three "profiles" in the code are <em>network</em> profiles, not user profiles.</td><td>The positive class has near-zero behavioural variance while negatives have five distinct behaviours — a direct cause of the trivial separation.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <h3>Would I have structured it differently from the assignment alone?</h3>
+    <p>Yes, and the difference is one of stance. The assignment asks for <em>"analýza a zhodnocení detekovatelnosti"</em> — an assessment of <strong>how detectable</strong> WebTunnel is. The implementation is built to <strong>maximise classifier accuracy</strong>. Those are not the same project, and the second one has a trivial optimum: make the classes different and report 99%.</p>
+    <p>A detectability study inverts the design pressure. You spend the engineering budget making the classes <em>as similar as you can honestly make them</em> — same client TLS stack, same destination host, same session-length distribution, same behavioural mixture, same capture window policy — and then report how much signal survives. Under that design, 99% accuracy is a finding. Under the current design it is a null result, because the design guarantees it.</p>
+    <p>Concretely, four things I would have ordered differently:</p>
+    <ul class="plain">
+      <li><strong>A leakage tripwire in week one, before any deep learning.</strong> A depth-1 decision stump on each of the 48 features, run after every dataset build. If any single feature exceeds ~90% accuracy, the dataset is broken. This would have caught the entire problem eight months ago and costs eleven lines of code.</li>
+      <li><strong>Negative controls as first-class experiments.</strong> A label-shuffle control (must collapse to chance) and a same-generator/different-label control (must collapse to chance). Neither exists.</li>
+      <li><strong>Dataset budget over model budget.</strong> Three model families on 8,500 correlated samples is worse science than one model family on 100,000 independent ones. The assignment asks for "referenční metoda + pokročilý DL klasifikátor" — two, not three.</li>
+      <li><strong>Defences designed against an adaptive adversary from the start</strong>, because a static-adversary defence result is not publishable and every committee member knows it.</li>
+    </ul>
+  </div>
+
+  <div class="col">
+    <h3>Over- and under-engineering</h3>
+    <p><strong>Over-engineered:</strong> the master orchestrator runs fifteen phases. The cascaded line-rate pipeline, the FDR projection curves, the DET curve down to 10⁻⁴, the SHAP/saliency layer and the two-tier defence simulation are all sophisticated instruments pointed at a dataset that cannot support any of them. Three model families where two would do; a Transformer that is 150× slower than XGBoost for 0.5 points less accuracy on a saturated task.</p>
+    <p><strong>Under-engineered:</strong> everything upstream of the models. Destination diversity (2 endpoints), positive-class independence (~13 connections), behavioural diversity of the positive class (1 script), negative-set scale for the low-FPR regime (1,042 test negatives against a claimed 10⁻⁴–10⁻⁵ operating point), and open-world evaluation (the closed 5-class negative set is not open-world in any sense the literature would accept).</p>
+  </div>
+
+  <div class="call">
+    <h4>Scale reference</h4>
+    <p>Wails, Sullivan, Sherr &amp; Jansen (NDSS 2024) — the paper this thesis builds its central argument on — evaluate on <strong>60,000,000 real-world flows to 600,000 destinations</strong>, spanning six orders of magnitude of base rate. This thesis: 8,500 lab captures, 2 destinations, ~13 independent positive connections. That gap is fine for an MSc <em>provided the claims are scaled to it</em>. Claiming a 10⁻⁵ FPR operating point from 1,042 negatives is not scaling the claim to the evidence.</p>
+  </div>
+
+  <h3 class="col">The QUIC question — the assignment names it explicitly</h3>
+  <div class="col">
+    <p>The rationale under review: <em>WebTunnel is an L4 TCP transport, and an in-path censor demultiplexes L4 before L7 inspection, therefore QUIC/UDP negatives cannot produce false positives and their absence is harmless.</em></p>
+    <p><strong>The mechanism is sound. The argument as stated is not sufficient, for four reasons.</strong></p>
+    <ul class="plain">
+      <li><strong>It is a scope decision presented as a proof.</strong> Restricting the negative universe to TCP/TLS is legitimate and defensible — but it must be stated as a scope boundary with a measured cost, not as a reason the requirement does not apply. The assignment names QUIC in the same breath as WebSockets and HTTP/2; silent omission reads as non-fulfilment regardless of how good the reasoning is.</li>
+      <li><strong>It changes the base rate, which is the thesis's own central quantity.</strong> Excluding QUIC removes 25–35% of modern egress HTTPS from the denominator. That <em>raises</em> α by roughly 1.4–1.5× and makes the censor's problem measurably easier. This is a number the thesis should compute and report, because it strengthens the base-rate chapter rather than weakening it.</li>
+      <li><strong>Host-based aggregation does not demultiplex.</strong> Wails et al.'s contribution — the one the thesis leans on hardest — scores <em>destinations</em>, not flows. A bridge IP that also answers QUIC contributes evidence at the host level that a per-flow L4 filter never sees. The L4-demux argument protects the flow classifier and not the host classifier, and the thesis uses both.</li>
+      <li><strong>It is a moving target.</strong> MASQUE/HTTP-3 proxying and QUIC-obfuscated VPN transports are live deployment paths; a TCP-only assumption dates the work. An opponent will ask "and when WebTunnel moves to HTTP/3?" — you need a paragraph, not a shrug.</li>
+    </ul>
+    <p><strong>The cheap fix that converts this from a weakness into a defended decision</strong> (roughly one day): add a sixth negative class of ~500 QUIC/HTTP-3 flows; run them through the pipeline to demonstrate the L4 demultiplexer discards 100% of them at zero cost; then run the one experiment that is actually interesting — feed QUIC flows to the TCP-trained classifiers <em>with the demux disabled</em>, and report what a sloppy real-world DPI parser would do. Add the α-recomputation above. You now have an empirical answer instead of a rationalisation.</p>
+    <p>One awkward detail to fix regardless: the captures already <em>contain</em> UDP — mDNS and SSDP multicast from the Docker host — and <code>sanitizer.py</code> merges it into the "flow" it hands the model. UDP is in the dataset as uncontrolled noise while QUIC is absent as a class. That is the worst of both positions.</p>
+  </div>
+</section>
+
+<!-- ============================= STEP 2 ============================= -->
+<section class="wrap" id="s2">
+  <div class="col">
+    <span class="sec-no">STEP 02</span>
+    <h2 class="sec">Testbed and anti-leakage pipeline</h2>
+    <p class="lede">Everything below was verified by re-parsing the raw PCAPs independently of the repository's own code.</p>
+  </div>
+
+  <div class="finding crit">
+    <div class="f-head"><span class="fid">F-01</span><span class="chip crit">Critical</span><span class="chip file">1_testbed/client/torrc</span><span class="chip file">capture/collect_scaled_dataset.py</span></div>
+    <p class="f-title">The WebTunnel class is not 1,500 flows — it is roughly 13 TCP connections sliced into windows</p>
+    <div class="f-body">
+      <p>Tor maintains a single long-lived TLS connection to its bridge. The collector starts <code>tcpdump</code>, fires one short request through the existing tunnel, and stops. So consecutive "sessions" are consecutive <em>windows</em> of the same socket, not independent flows. Sampling every 7th capture in the training range and every 2nd in the test range, the same client ports recur — and train and test share connections outright.</p>
+      <div class="ev">
+        <div class="ev-l">Client-side TCP source ports on the bridge connection, by split</div>
+<pre>profile     TRAIN (id&lt;=350)                        TEST (id&gt;425)      <b>SHARED</b>
+broadband   34626, 54478, 54490, 54500, 54502      54502              <span class="hi">54502</span>
+lte         36122, 51040                           51040              <span class="hi">51040</span>
+lossy       15000, 34636, 35498, 49660, 50860,     34636, 50860       <span class="hi">34636, 50860</span>
+            53980</pre>
+      </div>
+      <p>Three consequences, each fatal on its own. <strong>(a)</strong> The effective sample size of the positive class is ~13, not 1,500 — every confidence interval, standard deviation and 5-fold CI in the thesis is understated by roughly an order of magnitude. <strong>(b)</strong> The "Session-Stratified-Anti-Leakage" split leaks at exactly the level it claims to protect: the identical TCP connection appears in training and test. <strong>(c)</strong> Because the window almost never contains connection setup, the WebTunnel class has no TLS handshake at all — which produces F-02.</p>
+    </div>
+  </div>
+
+  <div class="finding crit">
+    <div class="f-head"><span class="fid">F-02</span><span class="chip crit">Critical</span><span class="chip file">2_data_pipeline/sanitizer.py</span></div>
+    <p class="f-title">Every negative capture contains a TLS handshake; virtually no WebTunnel capture does</p>
+    <div class="f-body">
+      <p>Across 42 sampled captures per class/profile:</p>
+      <div class="ev">
+        <div class="ev-l">Fraction of captures containing a TLS ClientHello, and mean SYN count</div>
+<pre>class                     broadband      lte          lossy        SYNs (bb)
+<b>webtunnel</b>                 <span class="hi">0.0%</span>          <span class="hi">2.4%</span>         <span class="hi">2.4%</span>          <span class="hi">0.00</span>
+direct_web_browsing       100%          100%          98%           2.00
+websocket_ticker          100%          100%          43%           2.07
+websocket_chat            100%          100%          67%           2.00
+video_streaming           100%          100%          74%           2.00
+web_assets                100%          100%          69%           2.00</pre>
+      </div>
+      <p>Zero-payload packets are filtered, so the SYNs themselves never reach the model — but the handshake's <em>record lengths</em> do, and they are deterministic constants: <code>517</code> (ClientHello), <code>1677</code>/<code>1686</code> (ServerHello flight), <code>80</code> (ChangeCipherSpec), <code>510</code>. A depth-1 stump on <code>down_len_min</code> at threshold 79 — that is, "did I see the 80-byte CCS record?" — reaches 98.58% accuracy on the repository's own test set. This is why <code>xgboost_results.json</code> reports ROC-AUC and PR-AUC of exactly 1.0.</p>
+    </div>
+  </div>
+
+  <div class="finding crit">
+    <div class="f-head"><span class="fid">F-03</span><span class="chip crit">Critical</span><span class="chip file">1_testbed/client/Dockerfile</span></div>
+    <p class="f-title">The WebTunnel client is not using uTLS — it presents a stock Go <code>crypto/tls</code> fingerprint</p>
+    <div class="f-body">
+      <p>The thesis's framing assumption is that WebTunnel mimics Chrome via uTLS, forcing the censor onto post-handshake dynamics. In the rare captures that do contain a WebTunnel handshake, that assumption does not hold:</p>
+      <div class="ev">
+        <div class="ev-l">ClientHello comparison, parsed from the raw captures</div>
+<pre>                          record   ciphers  ALPN                GREASE  ext count
+<b>webtunnel</b> (Go client)      <span class="hi">267 B</span>      19     <span class="hi">(absent)</span>              <span class="hi">no</span>        10
+direct_web_browsing        517 B      43     http/1.1, h2         no        12
+websocket_ticker           517 B      31     (absent)             no        11
+video_streaming            517 B      43     http/1.1, h2         no        12
+
+webtunnel ext ids: 0, 11, 65281, 23, 18, 5, 10, 13, 43, 51
+                   ^ no session_ticket(35), no padding(21), no ALPN(16), no GREASE
+                   = Go crypto/tls default, NOT a uTLS Chrome profile</pre>
+      </div>
+      <p>Two things follow. First, in this testbed WebTunnel is JA3/JA4-detectable outright, and a 267-vs-517-byte ClientHello is a perfect discriminator whenever setup is captured — so the "post-handshake analysis is necessary" premise is not exercised. Second, <strong>the absent ALPN means nginx cannot negotiate h2</strong>: this connection is HTTP/1.1 Upgrade → WebSocket, while <code>direct_web_browsing</code>, <code>video_streaming</code> and <code>web_assets</code> run HTTP/2. The README's claim of "native HTTP/2 framing" across all classes and the LaTeX label "Tor over HTTP/2 WSS" are both wrong, and the protocol mismatch is itself a confound.</p>
+      <p>Verify against upstream whether the bridge line needs an explicit <code>utls</code> / <code>utls-imitate</code> option. If stock Go TLS really is the default deployment behaviour, that is a genuine, reportable finding about WebTunnel — but it has to be established deliberately, not discovered by an opponent.</p>
+    </div>
+  </div>
+
+  <div class="finding crit">
+    <div class="f-head"><span class="fid">F-04</span><span class="chip crit">Critical</span><span class="chip file">sanitizer.py::extract_raw_packets_from_pcap</span></div>
+    <p class="f-title">There is no flow demultiplexing — a "flow" is every packet on <code>eth0</code> during the capture window</p>
+    <div class="f-body">
+      <p><code>tcpdump -i eth0</code> runs with no BPF filter, and the extractor iterates every packet in the file regardless of 5-tuple. Three problems compound.</p>
+      <ul class="plain">
+        <li><strong>Cross-class contamination.</strong> The Tor client keeps running during negative captures, so its bridge traffic lands in negative PCAPs: 31% of <code>direct_web_browsing</code> and 52% of <code>websocket_ticker</code> broadband captures contain WebTunnel packets. The negative class is polluted with the positive class.</li>
+        <li><strong>Host-window, not flow, classification.</strong> The unit of analysis is "everything one container did in ~5 s", including mDNS/SSDP multicast from the Docker host. No in-path censor has that view, and the cascaded-pipeline chapter assumes per-flow scoring throughout.</li>
+        <li><strong>Direction inversion.</strong> <code>client_ip</code> is taken from the <em>first packet in the file</em>. When that is inbound — 12% of broadband and up to 38% of lossy WebTunnel captures — the direction sign flips for the whole sample. Use the SYN or the known client address.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="finding major">
+    <div class="f-head"><span class="fid">F-05</span><span class="chip major">Major</span><span class="chip file">testbed capture</span></div>
+    <p class="f-title">TSO/GSO is enabled, so captured "packets" reach 65 KB and the 1500 B clamp manufactures a class signal</p>
+    <div class="f-body">
+      <p>Capturing on a veth with segmentation offload on means <code>tcpdump</code> records pre-segmentation super-packets, not wire packets. <code>min(pkt_len, 1500)</code> then collapses them all onto a single value.</p>
+      <div class="ev">
+        <div class="ev-l">Share of captured payload packets exceeding 1500 B (broadband)</div>
+<pre>video_streaming   <span class="hi">83.4%</span>   max 65,160 B      web_assets     <span class="hi">74.1%</span>   max 36,200 B
+webtunnel         23.7%   max 20,272 B      direct_browsing  8.0%   max  2,286 B
+websocket_ticker   0.9%   max  2,896 B      websocket_chat   4.9%   max  1,677 B</pre>
+      </div>
+      <p>So the high-throughput classes get an artificial spike at exactly 1500 while WebTunnel's small records pass through untouched. The packet-length histogram in the thesis — the figure that carries the "cell quantization" argument — is partly an artefact of the capture host. Fix with <code>ethtool -K eth0 tso off gso off gro off tx-gso-partial off</code> on the capture interface, or re-segment offline into MSS-sized chunks.</p>
+    </div>
+  </div>
+
+  <div class="finding major">
+    <div class="f-head"><span class="fid">F-06</span><span class="chip major">Major</span><span class="chip file">client/traffic_generator.py</span><span class="chip file">legitimate_servers/server.py</span></div>
+    <p class="f-title">The hard negatives are well-designed on paper and do not behave as designed in the capture</p>
+    <div class="f-body">
+      <p>Credit where due: the generator deliberately places WebSocket and GraphQL payloads in the 320–750 B band to overlap the Tor cell, and the server mirrors that. That is exactly the right instinct. It did not survive contact with the wire — the upstream direction in every negative class is dominated by tiny protocol chatter, not by the designed payloads.</p>
+      <div class="ev">
+        <div class="ev-l">Most frequent upstream TLS record sizes, broadband, aggregated over 60–120 captures</div>
+<pre><b>webtunnel</b>        558×1904   1072×253   1448×106   138×17   652×13
+                  <span class="hi">81.4% of all upstream records are exactly 558 B</span>
+websocket_ticker  46×201   47×190   45×145   517×60   80×60   304×60   48×58
+websocket_chat    52×74    53×74    517×60   302×60   80×60   51×48    30×47</pre>
+      </div>
+      <p>Those 44–55 byte records are HTTP/2 <code>WINDOW_UPDATE</code>/<code>PING</code>/<code>SETTINGS</code> and WebSocket ping/pong frames. WebTunnel — a single long-lived stream with no flow-control dynamics — emits none of them. That asymmetry <em>is</em> a real protocol property (it is vulnerability #3 in the roadmap, and Huma, NDSS 2026, names the same weakness), but its magnitude here is inflated by sessions so short that control chatter dominates the payload.</p>
+      <p>Two further behavioural artefacts: the capture-window duration is a per-class constant driven by the script rather than the protocol (<code>websocket_ticker</code> 20.6 ± 6.2 s versus <code>web_assets</code> 1.18 ± 0.31 s), and <code>total_pkts</code>/<code>total_bytes</code> are features #46 and #47. And the ticker's 20 s is itself a bug: the generator asks for 2–4 s, but the server never reads from <code>/ws/ticker</code>, so the close handshake stalls.</p>
+    </div>
+  </div>
+
+  <div class="finding major">
+    <div class="f-head"><span class="fid">F-07</span><span class="chip major">Major</span><span class="chip file">router/netem_profiles.sh</span><span class="chip file">common/config.py</span></div>
+    <p class="f-title">The network profiles are egress-only, bandwidth-unlimited, and mislabelled in the config that feeds the thesis figures</p>
+    <div class="f-body">
+      <p>The parameters themselves (20 ms ± 4 ms normal / 45 ms ± 15 ms paretonormal / Gilbert–Elliot burst loss) are reasonable and faithful to the roadmap. Three problems with how they are applied and described:</p>
+      <ul class="plain">
+        <li><code>tc qdisc … dev eth0 root</code> shapes <strong>egress only</strong>. Downstream loss — the direction that carries video and asset traffic — is never emulated. Use an <code>ifb</code> device with <code>tc mirred</code> for ingress.</li>
+        <li>No <code>tbf</code>/<code>htb</code> rate limit, so "4G/LTE" has unlimited bandwidth and no bufferbloat. LTE's defining characteristic is a shallow, deep-buffered link, not 45 ms of jitter.</li>
+        <li><code>PROFILE_DISPLAY_NAMES</code> in <code>config.py</code> says <em>"Broadband (Gigabit Fiber, 0% Loss, 2ms RTT)"</em>, <em>"4G/LTE (30ms RTT, Jitter 5ms)"</em>, <em>"Lossy WAN (2% Packet Loss, 80ms RTT, Jitter 15ms)"</em>. None of those match the shell script. These strings are what the plots and tables print — the thesis would ship parameters that were never applied.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="finding minor">
+    <div class="f-head"><span class="fid">F-08</span><span class="chip minor">Minor</span><span class="chip file">capture/collect_scaled_dataset.py</span><span class="chip file">build_dataset.py</span></div>
+    <p class="f-title">Class-blocked capture order, and class-dependent sample attrition</p>
+    <div class="f-body">
+      <p>All 500 samples of a class are captured consecutively, then the next class. Class is therefore perfectly confounded with wall-clock time, host load and Tor circuit state. Interleave classes randomly within each profile block and record timestamps in a manifest.</p>
+      <p>Attrition is also class-dependent: <code>websocket_ticker</code> retains 1,268 of 1,500 captures (84.5%) while <code>direct_web_browsing</code> retains 1,494 (99.6%), because failed short sessions fall below the <code>len(packets) &lt; 3</code> floor. The discarded samples are systematically the hardest ones — a survivorship bias that flatters every metric. Log and report the drop table.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= STEP 3 ============================= -->
+<section class="wrap" id="s3">
+  <div class="col">
+    <span class="sec-no">STEP 03</span>
+    <h2 class="sec">Models and the evaluation suite</h2>
+    <p class="lede">Independently re-derived: a decision stump beats the Transformer, and the countermeasure chapter measures its own bug.</p>
+  </div>
+
+  <div class="finding crit">
+    <div class="f-head"><span class="fid">F-09</span><span class="chip crit">Critical</span><span class="chip file">whole dataset</span></div>
+    <p class="f-title">The task is separable by one constant, so none of the models are being evaluated</p>
+    <div class="f-body">
+      <p>I rebuilt the feature matrix from the raw PCAPs four different ways to test whether the sanitization is at fault. It is not — the problem is upstream of it.</p>
+
+      <figure>
+        <div class="sep-row"><span class="lab">webtunnel</span><div class="track">
+          <span class="dot wt" style="left:38.6%;width:5px" title="p1=p50=p99 = 558 B"></span></div></div>
+        <div class="sep-row"><span class="lab">direct browsing</span><div class="track">
+          <span class="dot" style="left:4.5%;width:4px"></span></div></div>
+        <div class="sep-row"><span class="lab">ws ticker</span><div class="track">
+          <span class="dot" style="left:3.2%;width:4px"></span></div></div>
+        <div class="sep-row"><span class="lab">ws chat</span><div class="track">
+          <span class="dot" style="left:3.6%;width:4px"></span></div></div>
+        <div class="sep-row"><span class="lab">video streaming</span><div class="track">
+          <span class="dot" style="left:4.6%;width:4px"></span></div></div>
+        <div class="sep-row"><span class="lab">web assets</span><div class="track">
+          <span class="dot" style="left:5.1%;width:4px"></span></div></div>
+        <div class="axis"><span></span><div class="ticks">
+          <span style="left:0%">0</span><span style="left:13.8%">200</span><span style="left:27.6%">400</span>
+          <span style="left:38.6%">558</span><span style="left:55.2%">800</span><span style="left:100%">1448 B</span>
+        </div></div>
+        <figcaption><strong>Median upstream record size per class (variant V3: single TCP flow, first 10 packets dropped, GSO undone).</strong> WebTunnel sits at 558 B for its 1st, 50th <em>and</em> 99th percentile — a zero-variance constant. Every negative class falls between 40.5 B and 81 B at the 99th percentile. The two supports do not touch anywhere in the dataset.</figcaption>
+      </figure>
+
+      <div class="ev">
+        <div class="ev-l">Re-derived: extraction variant &times; feature subset, gradient boosting, same session split</div>
+<pre>EXTRACTION VARIANT                                acc      ROC-AUC   avg-prec   FPR@TPR95
+V0  all packets merged (repo pipeline)          100.00%   1.0000    1.0000     0.0000
+V1  single target TCP flow only                 100.00%   1.0000    1.0000     0.0000
+V2  single flow, first 10 packets dropped       100.00%   1.0000    1.0000     0.0000
+V3  V2 + segmentation offload undone            100.00%   1.0000    1.0000     0.0000
+
+FEATURE SUBSET ON V3
+sizes only  (28 feats)                          100.00%   1.0000    1.0000     0.0000
+timing only (11 feats)                           99.92%   1.0000    1.0000     0.0000
+<b>volume only (4 feats: up-ratios, total pkts/bytes)</b> <span class="hi">100.00%</span>   <span class="hi">1.0000</span>    <span class="hi">1.0000</span>     <span class="hi">0.0000</span>
+no volume, no duration features                 100.00%   1.0000    1.0000     0.0000
+
+SINGLE-FEATURE DEPTH-1 STUMPS ON V3
+up_len_mean / p10 / p25 / p50 / p75             <span class="hi">100.00%</span>   <span class="hi">1.0000</span>    (threshold 316-531 B)
+up_len_min                                       99.92%   0.9953
+down_len_min                                     99.09%   0.9919    (the 80 B ChangeCipherSpec)</pre>
+      </div>
+      <p>Four features — two directional ratios and two totals — reach a perfect score. So does <em>one</em> feature. Stripping handshakes, isolating a single TCP flow and undoing offload all change nothing, because the separation is created by the experimental design, not by the packet representation.</p>
+      <p>The project's own SHAP figure already shows this: <code>up_len_p25</code> carries roughly three times the mean absolute attribution of the runner-up, with <code>down_len_min</code> in fourth place. The XAI layer diagnosed the problem correctly; it just was not read as a warning.</p>
+    </div>
+  </div>
+
+  <div class="finding crit">
+    <div class="f-head"><span class="fid">F-10</span><span class="chip crit">Critical</span><span class="chip file">evaluate_before_after_defenses.py</span></div>
+    <p class="f-title">The countermeasure result is a feature-pipeline artefact, and the defences provide no protection at all</p>
+    <div class="f-body">
+      <p>The "before" condition uses the stored <code>X_test</code>. The "after" condition rebuilds features from the 200 × 2 tensor via <code>recompute_tabular_features()</code>. That path truncates the flow to 200 packets and round-trips the inter-arrival channel through <code>expm1(x·10)</code> on a clipped value — so before and after are computed by two different pipelines, and the model sees out-of-distribution input in the "after" arm regardless of any defence. The missing control is one line, and it is decisive:</p>
+      <div class="ev">
+        <div class="ev-l">Reproduced with the repository's own saved XGBoost model on its own test split</div>
+<pre>condition                                                  accuracy   recall
+(1) original features, saved model  — repo "before"          98.90%   100.00%
+(2) <b>CONTROL: features recomputed from the UNMODIFIED tensor</b>   86.66%   <span class="hi"> 24.89%</span>   &lt;- no defence applied
+(3) Mode 1 adaptive padding, 4.1% overhead — repo "after"    88.63%    36.00%
+(4) Mode 2 cell coalescing, 4.4% overhead — repo "after"     88.87%    37.33%
+
+ADAPTIVE ADVERSARY (retrain the censor on defended traffic — the missing experiment)
+Mode 1 padding, retrained XGBoost                           100.00%   <span class="go">100.00%</span>   AUC 1.0000
+Mode 2 coalescing, retrained XGBoost                        100.00%   <span class="go">100.00%</span>   AUC 1.0000
+reference: retrained on UNdefended recomputed features       98.90%   100.00%   AUC 1.0000</pre>
+      </div>
+      <p>Undefended traffic pushed through the same recomputation path already collapses to 24.89% recall — <em>lower</em> than the 36.0% reported for defended traffic. Read literally, the repository's own numbers say the defence makes WebTunnel <strong>easier</strong> to detect. Both effects are the artefact.</p>
+      <p>Against a censor that retrains — the only threat model worth publishing — both defences give exactly zero protection: 100% recall, AUC 1.0000, average precision 1.0000. The mechanism is clear from F-09: the model had memorised a delta function at 558 B, so <em>any</em> perturbation breaks the frozen model, while padding of 1–128 B moves the mode to 559–686 B, which is still nowhere near the negatives' 40–81 B support.</p>
+      <p>The repository's own LaTeX table contains the tell that should have caught this: 1D-CNN recall stays at 100.0% and Transformer at 99.6% under both defences. Only XGBoost moved. A defence that affects exactly one of three classifiers is a pipeline bug, not a defence — but the README promotes the XGBoost number as the headline result.</p>
+      <p>Two further problems with the simulation itself: <code>recompute_tabular_features()</code> is applied to the negatives too, so the accuracy column of the table is contaminated in both arms; and coalescing is scored purely in bytes (4.4% "overhead") while its real cost — buffering latency and throughput on an interactive Tor circuit — is never measured. <code>max(0.0, overhead)</code> also silently hides the fact that coalescing removes bytes before padding adds them back.</p>
+    </div>
+  </div>
+
+  <div class="finding crit">
+    <div class="f-head"><span class="fid">F-11</span><span class="chip crit">Critical</span><span class="chip file">3_models/cross_validate.py</span></div>
+    <p class="f-title">The cross-validation group vector is misaligned with the feature matrix — grouping is 93% wrong</p>
+    <div class="f-body">
+      <p><code>X_tab</code> is built as <code>concat(X_train, X_val, X_test)</code>, which is a permutation of the original file order. <code>groups</code> is <code>sample_ids_all</code>, which is in original file order. They are never re-indexed against each other.</p>
+      <div class="ev">
+        <div class="ev-l">Alignment check on the shipped <code>tabular_dataset.npz</code></div>
+<pre>len(sample_ids_all)                       8500
+len(concat(train, val, test) ids)         8500
+arrays identical?                         <span class="hi">False</span>
+positions where the CV group label is the correct session id   <span class="hi">6.85%</span></pre>
+      </div>
+      <p>So <code>StratifiedGroupKFold</code> partitions on a label vector that is wrong for 93% of rows: the docstring's claim that session groups are "strictly respected" is false, and the reported ±0.2% fold spreads are optimistic. Two further issues in the same file: the docstring says groups are 1–100 when they are 1–500; and for the CNN and Transformer the best epoch is selected by loss <em>on the evaluation fold itself</em>, then metrics are reported from that same fold — model selection on test data.</p>
+    </div>
+  </div>
+
+  <div class="finding major">
+    <div class="f-head"><span class="fid">F-12</span><span class="chip major">Major</span><span class="chip file">evaluate_post_handshake.py</span><span class="chip file">sanitizer.py</span></div>
+    <p class="f-title">The 0x17 cutoff does not strip the TLS 1.3 handshake, and cannot prove what it is used to prove</p>
+    <div class="f-body">
+      <p>Two independent defects. <strong>Protocol-level:</strong> in TLS 1.3 the server's <code>EncryptedExtensions</code>, <code>Certificate</code>, <code>CertificateVerify</code> and <code>Finished</code> travel inside records whose <em>outer</em> ContentType is <code>0x17</code>. Cutting at the first <code>0x17</code> therefore removes only ClientHello, ServerHello and ChangeCipherSpec — the certificate flight and session tickets survive. Empirically the negatives still begin with a deterministic 510-byte or 304-byte record in essentially 100% of captures, and WebTunnel never does. The matching heuristic is also brittle: it only fires when a record header happens to start a TCP segment.</p>
+      <p><strong>Logical:</strong> the ablation is uninformative here by construction. Per F-02 the WebTunnel class has no handshake to strip, so the operation only modifies negatives. "Accuracy stayed at 98%" therefore says nothing about whether the model learned Tor cell quantization — it says the classes remained different after one class was edited. The experiment as written cannot support the claim in the README.</p>
+      <p>The fix is to cut at the <em>client's</em> first application record after its <code>Finished</code>, and then <strong>assert</strong> that the first-N record-length distributions overlap across classes before training. That assertion is the actual proof; the accuracy number is not.</p>
+    </div>
+  </div>
+
+  <div class="finding major">
+    <div class="f-head"><span class="fid">F-13</span><span class="chip major">Major</span><span class="chip file">evaluate_det_curve.py</span><span class="chip file">evaluate_base_rate_fallacy.py</span></div>
+    <p class="f-title">The low-FPR regime — the assignment's explicit emphasis — is never measured</p>
+    <div class="f-body">
+      <p>The test split holds 1,042 negatives. The smallest non-zero FPR that can be observed is 1/1042 ≈ 9.6 × 10⁻⁴. Yet the DET curve is plotted down to 10⁻⁴ with <code>np.maximum(fpr, 1e-4)</code> flooring it there, and the base-rate chapter projects operating points at 10⁻⁴ and 10⁻⁵.</p>
+      <p>By the rule of three, an upper bound of 10⁻⁵ at 95% confidence requires roughly 3 × 10⁵ negatives with zero false positives. The thesis is short by two and a half orders of magnitude. This is the one requirement the assignment names explicitly — <em>"s důrazem na režim s nízkou mírou falešných poplachů (Low FPR)"</em> — and it is currently the least supported claim in the work.</p>
+      <p>Two acceptable resolutions, and you should pick one deliberately: scale the negative set to ≥10⁵ flows, or keep the current scale and report every FPR with Clopper–Pearson intervals, truncate the DET curve at 1/N, and relabel the base-rate table as an explicitly <em>analytical projection</em> under assumed FPRs rather than a measurement. The second is entirely defensible for an MSc; presenting projections as measurements is not.</p>
+    </div>
+  </div>
+
+  <div class="finding major">
+    <div class="f-head"><span class="fid">F-14</span><span class="chip major">Major</span><span class="chip file">evaluate_base_rate_fallacy.py</span></div>
+    <p class="f-title">The "Bayesian host-based aggregation" is not the aggregation the roadmap specifies, and not the one Wails et al. propose</p>
+    <div class="f-body">
+      <p>The roadmap gives the correct formulation — a log-likelihood-ratio sum over the flows to a host, <code>Score(H) = Σ log(pₖ/(1−pₖ))</code>, thresholded at τ. The code implements <code>tpr_m = tpr**M</code> and <code>fpr_m = fpr**M</code>: that is an AND-rule over <em>M</em> independent hard decisions, not a Bayesian evidence accumulation, and it assumes independence between flows to the same host, which is precisely the assumption the NDSS paper spends its evaluation attacking. The "correlated" curve then patches this with <code>max(fpr**M, ρ·√fpr)</code>, where ρ = 0.01 is an unmotivated constant.</p>
+      <p>Nothing here touches the model's actual per-flow scores — it is a closed-form plot of assumed numbers presented as an experiment. Implement the LLR sum on real scores, group by destination, and sweep <em>M</em>. Note honestly that with one bridge IP the host-level experiment is a simulation, not a measurement — which is another reason to add bridge instances (see the P1 list).</p>
+    </div>
+  </div>
+
+  <div class="finding major">
+    <div class="f-head"><span class="fid">F-15</span><span class="chip major">Major</span><span class="chip file">evaluate_cascaded_pipeline.py</span></div>
+    <p class="f-title">The line-rate claim omits the only cost that actually matters at line rate</p>
+    <div class="f-body">
+      <p>2,204,567 flows/s is model inference on a pre-computed 48-column matrix. A real in-path censor must first maintain a flow table, reassemble TCP, parse TLS record boundaries and compute 48 statistics per flow — costs that are one to three orders of magnitude larger than the tree traversal and are not benchmarked anywhere in the repository. Additional problems:</p>
+      <ul class="plain">
+        <li>The table places 62.23 µs single-flow latency next to 2.7 M flows/s batch throughput as if they compose. The 62 µs is Python call overhead for a batch of one; a production DPI implementation would not be written in Python. State which quantity supports which claim.</li>
+        <li>The 2.1% escalation rate is measured on a saturated task where nothing is ambiguous. On a realistic dataset that fraction — the entire economic argument for the cascade — will be much larger, and it is the number the whole chapter turns on.</li>
+        <li>The trained model calibrates a threshold of 0.928 on validation, then the cascade evaluates at 0.5 with escalation band [0.05, 0.95]. Pick one operating-point policy and use it consistently.</li>
+      </ul>
+      <p>Also worth reframing: a per-flow rule of the form "≥50% of upstream records are exactly 558 B" needs no ML at all and runs in a few instructions. If the thesis is arguing about censor cost, that rule is the strongest argument in it — and it makes the case for the defences far better than the ML pipeline does.</p>
+    </div>
+  </div>
+
+  <div class="finding minor">
+    <div class="f-head"><span class="fid">F-16</span><span class="chip minor">Minor</span><span class="chip file">utils.py</span><span class="chip file">architectures.py</span></div>
+    <p class="f-title">Modelling details that would draw questions</p>
+    <div class="f-body">
+      <ul class="plain">
+        <li><strong>PR-AUC via trapezoidal <code>auc(recall, precision)</code></strong> is optimistically biased; the literature standard is <code>average_precision_score</code>. At the current saturation it changes nothing, but on a fixed dataset it will.</li>
+        <li><strong>No key-padding mask in the Transformer.</strong> Flows are zero-padded to 200 and the <code>[CLS]</code> token attends over the padding, so the model can read flow length directly from the attention pattern — a shortcut, and flow length is class-correlated (F-06).</li>
+        <li><strong>IAT channel is squashed.</strong> <code>log1p(Δt)/10</code> maps a 0–5 s range onto [0, 0.18] while the size channel spans [−0.97, 0.97]. The timing channel carries roughly a tenth of the dynamic range of the size channel, which likely explains why timing features contribute so little.</li>
+        <li><strong>Focal loss α = 0.75</strong> in code versus α = 0.25 in the roadmap and in Lin et al. Defensible, but document the inversion.</li>
+        <li><strong>Architecture drift</strong> from the roadmap spec (kernels 5/5/3 vs 7/5/3, FC 256→64 vs 256→128, dropout 0.3 vs 0.4). Harmless, but the thesis text must describe what runs, not what was planned.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="finding minor">
+    <div class="f-head"><span class="fid">F-17</span><span class="chip minor">Minor</span><span class="chip file">requirements.txt</span><span class="chip file">README.md</span></div>
+    <p class="f-title">The documented setup path does not execute</p>
+    <div class="f-body">
+      <p><code>pip install -r requirements.txt</code> fails: the file pins <code>xgboost&gt;=3.4.1</code> and <code>scikit-learn&gt;=1.9.0</code>, while the newest published releases resolve to 3.2.0 and 1.7.2 respectively; <code>numpy&gt;=2.5.0</code>, <code>scipy&gt;=1.18.0</code>, <code>pandas&gt;=3.0.0</code>, <code>matplotlib&gt;=3.11.0</code> and <code>shap&gt;=0.52.0</code> are in the same category. Replace with an exact <code>pip freeze</code> of the environment that produced the results — an opponent who cannot reproduce your environment will not trust your numbers.</p>
+      <p>Related: <code>data/raw_pcap/</code> and <code>*.pcap</code> are gitignored, so the 4.1 GB of evidence is not archived anywhere reproducible. Publish it (or a hash manifest plus a sample) alongside the thesis.</p>
+    </div>
+  </div>
+
+  <div class="finding minor">
+    <div class="f-head"><span class="fid">F-18</span><span class="chip minor">Minor</span><span class="chip file">README.md</span><span class="chip file">0_thesis_text/tables/</span></div>
+    <p class="f-title">Documentation asserts things the code does not do</p>
+    <div class="f-body">
+      <ul class="plain">
+        <li>"9,000 PCAPs (8,500 verified TLS 1.3 network flows)" — they are captures, not flows (F-04), the WebTunnel ones are not independent (F-01), and nginx permits TLS 1.2.</li>
+        <li>"under native HTTP/2 framing" — WebTunnel negotiates no ALPN and the WebSocket classes use HTTP/1.1 (F-03).</li>
+        <li>"empirically prove that model detection is NOT dependent on TLS metadata" — the ablation cannot support this (F-12).</li>
+        <li>Mode 2's docstring says "~11–14% overhead"; the README and the table say 4.5%.</li>
+        <li>Every class-breakdown accuracy is 97–100%, which should have read as a warning rather than a result.</li>
+      </ul>
+      <p>Tighten all of these before an opponent does. Overclaiming in a README is survivable; overclaiming in a defence is not.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= STEP 4 ============================= -->
+<section class="wrap" id="s4">
+  <div class="col">
+    <span class="sec-no">STEP 04</span>
+    <h2 class="sec">What to change, in priority order</h2>
+    <p class="lede">P0 is blocking: without it the practical part cannot be defended. P1 delivers what the assignment explicitly asks for. P2 is polish.</p>
+  </div>
+
+  <div class="prio">
+    <div class="prio-h"><span class="tag p0">P0</span><h3>Blocking — re-collection and correctness</h3><span class="note">≈ 2–3 weeks, most of it unattended capture</span></div>
+    <ol class="acts">
+      <li><b>Make every positive sample an independent TCP connection.</b><span>Restart the Tor client (or force a fresh bridge connection) per session, and assert in the collector that each capture contains exactly one SYN to the bridge on a previously unseen source port. Refuse to write the PCAP otherwise. This single change fixes F-01, most of F-02, and makes F-12 meaningful.</span></li>
+      <li><b>Filter the capture and demultiplex the flow.</b><span>Give <code>tcpdump</code> a BPF expression pinned to the expected server and port; in <code>sanitizer.py</code>, key packets by 5-tuple and analyse exactly one flow. Derive direction from the SYN, not from the first packet in the file. Fixes F-04.</span></li>
+      <li><b>Equalise the client TLS stack.</b><span>Either drive the negatives through the same Go/uTLS profile the transport uses, or fix the handshake cut (below) — preferably both. Then add a hard assertion: ClientHello record length must not be class-informative. Fixes F-03.</span></li>
+      <li><b>Fix the post-handshake cutoff and turn it into a real control.</b><span>Cut at the client's first application record after its <code>Finished</code>. Then assert that the first-<em>N</em> record-length distributions overlap across classes (a two-sample test, reported in the thesis). The assertion is the proof; the accuracy number never was. Fixes F-12.</span></li>
+      <li><b>Add the leakage tripwire and negative controls to the pipeline.</b><span>After every dataset build, fit a depth-1 stump per feature and fail the build if any exceeds ~90% accuracy. Add a label-shuffle control and a same-generator/different-label control; both must collapse to chance. Report the tripwire table in the thesis — done deliberately, it is a methodological strength.</span></li>
+      <li><b>Rebuild the countermeasure chapter around an adaptive adversary.</b><span>Apply defences at the record level on the raw traces, not on the truncated 200×2 tensor; run the pipeline-identity control; retrain the censor on defended traffic; report latency and throughput overhead alongside bytes. Report the honest result — that 1–128 B padding is defeated by retraining — as the finding. Fixes F-10.</span></li>
+      <li><b>Fix the CV group alignment and model selection.</b><span>Carry the group ids through the same permutation as the features, and group by <em>TCP connection id</em>, not by sample index. Select the best epoch on an inner validation split, never on the evaluation fold. Fixes F-11.</span></li>
+      <li><b>Disable segmentation offload on the capture interface.</b><span><code>ethtool -K eth0 tso off gso off gro off</code>, or re-segment offline into MSS chunks. Then re-derive the packet-length histogram — the figure carrying the cell-quantization argument. Fixes F-05.</span></li>
+      <li><b>Randomise capture order and log a manifest.</b><span>Interleave classes within each netem profile; record start/end timestamps, the netem profile in force, the client port and the git commit per capture. Fixes F-08 and makes the whole corpus auditable.</span></li>
+      <li><b>Freeze a working environment.</b><span><code>pip freeze &gt; requirements.txt</code>, and archive the PCAP corpus (or a manifest of SHA-256 hashes plus a public sample). Fixes F-17.</span></li>
+    </ol>
+  </div>
+
+  <div class="prio">
+    <div class="prio-h"><span class="tag p1">P1</span><h3>Required by the assignment's own wording</h3><span class="note">≈ 1–2 weeks</span></div>
+    <ol class="acts">
+      <li><b>Resolve the low-FPR regime honestly.</b><span>Either scale to ≥10⁵ negative flows, or keep the scale and report Clopper–Pearson bounds, truncate the DET curve at 1/N, and relabel the base-rate table as an analytical projection. Pick one and say why in the text. Fixes F-13.</span></li>
+      <li><b>Implement the host-based aggregator you specified.</b><span>The LLR sum over real per-flow scores, grouped by destination, swept over <em>M</em>. Delete the <code>fpr**M</code> curve. State plainly that with one bridge IP this is a simulation. Fixes F-14.</span></li>
+      <li><b>Add destination diversity.</b><span>Five to ten distinct legitimate endpoints (different vhosts, certificates, content-size profiles) and at least three bridge instances. This is what makes the roadmap's own Destination-Split possible and turns the host-based chapter into a measurement.</span></li>
+      <li><b>Give WebTunnel the behavioural diversity the negatives already have.</b><span>Implement the three roadmap profiles over the tunnel — interactive browsing with think-time, bulk download, interactive shell. Without this the positive class is one script and the comparison is unbalanced by construction.</span></li>
+      <li><b>Close the QUIC gap.</b><span>~500 QUIC/HTTP-3 negative flows, a demonstration that the L4 demultiplexer discards them at zero cost, the "demux disabled" counterfactual, and the α recomputation. One day of work that removes an entire line of attack.</span></li>
+      <li><b>Benchmark feature extraction, not just inference.</b><span>Time PCAP parsing, flow reassembly and the 48-statistic computation per flow. Report the end-to-end pipeline cost. Without it the cascade chapter has no load-bearing number. Fixes F-15.</span></li>
+      <li><b>Fix the network profiles.</b><span>Ingress shaping via <code>ifb</code>, a bandwidth ceiling per profile, and make <code>PROFILE_DISPLAY_NAMES</code> generate its strings from the actual netem parameters so they can never diverge again. Fixes F-07.</span></li>
+    </ol>
+  </div>
+
+  <div class="prio">
+    <div class="prio-h"><span class="tag p2">P2</span><h3>Polish — cheap, and each one closes a question</h3><span class="note">≈ 2–3 days</span></div>
+    <ol class="acts">
+      <li><b>Switch PR-AUC to <code>average_precision_score</code>; add a key-padding mask to the Transformer; rescale the IAT channel</b><span>to comparable dynamic range with the size channel (for example <code>log1p(Δt)</code> divided by the training-set 99th percentile). Fixes F-16.</span></li>
+      <li><b>Fix the ticker generator.</b><span>Have <code>/ws/ticker</code> drain client messages so the close handshake completes and the session actually lasts the requested 2–4 s instead of ~20 s. Fixes half of F-06.</span></li>
+      <li><b>Report the attrition table.</b><span>Captures attempted, captures retained, and the reason for each drop, per class and profile. Silent 15% attrition in one class is the kind of detail an opponent finds. Fixes F-08.</span></li>
+      <li><b>Reconcile every number in the README and the LaTeX tables with what the code emits.</b><span>Regenerate the tables last, from a single clean run, and diff the prose against them. Fixes F-18.</span></li>
+      <li><b>Add the trivial-rule baseline as a headline result.</b><span>"≥50% of upstream records are exactly 558 B" — report its accuracy, its cost in instructions, and its resilience to each defence, alongside the ML models. It is the most defensible finding in the project.</span></li>
+    </ol>
+  </div>
+
+  <h3 class="col">What is already good and must survive the rewrite</h3>
+  <div class="keep">
+    <div><h4>The roadmap's critical deconstruction</h4><p>§3's three traps are better threat modelling than many published papers manage. Keep it, and add a fourth trap describing what went wrong here.</p></div>
+    <div><h4>The 558 B arithmetic</h4><p>558 = 5 (TLS header) + 536 + 1 (inner type) + 16 (AEAD tag), and 536 = 514 (Tor cell) + 22 (framing); 1072 = 2 × 536. That is a clean, verifiable protocol result and the real contribution.</p></div>
+    <div><h4>Reproducible orchestration</h4><p>A fifteen-phase master runner, seeded config, auto-generated LaTeX and 300 DPI figures. Rare at MSc level and worth a section of the thesis in its own right.</p></div>
+    <div><h4>The XAI layer</h4><p>SHAP plus gradient saliency already surfaced the leak. Reframe it from "interpretation" to "leakage diagnosis" and it becomes a method contribution.</p></div>
+    <div><h4>Hard-negative design intent</h4><p>Deliberately placing legitimate payloads in the 320–750 B band to overlap Tor cells is exactly right. It needs to be verified on the wire, not just written into the generator.</p></div>
+    <div><h4>The economic framing</h4><p>Base-rate fallacy, cascaded inspection, censor cost. The framing is the correct one for this problem; only the numbers underneath need replacing.</p></div>
+  </div>
+
+  <h3 class="col" style="margin-top:56px">The five questions you will be asked</h3>
+  <div class="col" style="max-width:76ch">
+    <p>Each of these is answerable well <em>after</em> the P0 work. Answering them from the current results is not possible, which is the clearest way to see why P0 is blocking.</p>
+  </div>
+
+  <details class="qa">
+    <summary>Your ROC-AUC is exactly 1.0. What single feature achieves that, and why is it not a laboratory artefact?</summary>
+    <div class="ans">
+      <p><strong>Currently answerable only by conceding the point.</strong> The answer is <code>up_len_p50</code>, constant at 558 B across the 1st, 50th and 99th percentile of the positive class against 40.5–81 B for every negative, and both the handshake asymmetry and the persistent-connection artefact contribute.</p>
+      <p><strong>After P0, the answer becomes a strength:</strong> "It is 558 B, and that is a genuine protocol invariant, not an artefact — here is the arithmetic (514 B Tor cell + 22 B framing + 22 B TLS 1.3 AEAD overhead), here is the leakage-tripwire table showing that no other single feature exceeds chance, here is the label-shuffle control at 50%, and here is the same result across independent connections, destinations and client stacks. The remaining discriminative power after handshake removal and stack equalisation is <em>X</em>%, and that is the number the thesis reports."</p>
+      <p>Prepare the tripwire table as a slide. Volunteering it before you are asked converts your worst question into your methodology contribution.</p>
+    </div>
+  </details>
+
+  <details class="qa">
+    <summary>You report 8,500 flows. How many <em>independent</em> WebTunnel connections are in the corpus?</summary>
+    <div class="ans">
+      <p>Today: roughly thirteen, and the same connection appears in both training and test. There is no way to argue around this — the client ports are in the PCAPs.</p>
+      <p>The defensible position after P0 is: "Each capture is one TCP connection, established fresh; connection identity is the CV grouping key; the split is by connection, and no connection appears in more than one fold. Independent positive connections: <em>N</em>." Then quote the effective sample size explicitly, and give confidence intervals computed at the connection level rather than the sample level. If a reviewer computes your effective <em>n</em> before you do, you have lost the room.</p>
+    </div>
+  </details>
+
+  <details class="qa">
+    <summary>You claim your countermeasures reduce recall to 36%. What happens when the censor retrains on defended traffic?</summary>
+    <div class="ans">
+      <p>Measured here: <strong>100% recall, AUC 1.0000, average precision 1.0000</strong> — for both Mode 1 and Mode 2. And the 36% figure itself is a pipeline artefact: undefended traffic through the same recomputation path already yields 24.89%.</p>
+      <p>The honest version is a better thesis. Report the static-adversary and adaptive-adversary results side by side and explain <em>why</em> padding fails: 1–128 B shifts the 558 B mode to 559–686 B, which never enters the legitimate upstream support of 40–81 B. Then derive the requirement that actually follows — a defence must move the distribution <em>into</em> the legitimate support, which means coalescing to MTU-sized records <em>and</em> injecting HTTP/2 control-frame chatter (<code>WINDOW_UPDATE</code>, <code>PING</code>, <code>SETTINGS</code>) to reproduce the small-record mass that every legitimate class has and WebTunnel entirely lacks. That is a concrete, testable recommendation for the Tor pluggable-transports team, and it is what Huma (NDSS 2026) independently arrives at from the other direction.</p>
+    </div>
+  </details>
+
+  <details class="qa">
+    <summary>The assignment names QUIC. Where is it?</summary>
+    <div class="ans">
+      <p>The L4-demultiplexing argument is correct as a mechanism and should be stated — but state it as a scope boundary with a measured cost, not as a reason the requirement does not apply. Then add the three artefacts that close it: a ~500-flow QUIC negative class demonstrating the demultiplexer discards it at zero cost; the counterfactual showing what a TCP-trained classifier does to QUIC flows when the demux is absent; and the recomputed base rate, since excluding 25–35% of egress HTTPS raises α by ~1.4× and makes the censor's task <em>easier</em>.</p>
+      <p>Also acknowledge the limit of the argument: host-based aggregation scores destinations, not flows, so a bridge that also answers QUIC contributes host-level evidence the L4 filter never sees. Volunteering that boundary is what separates a scope decision from an omission.</p>
+    </div>
+  </details>
+
+  <details class="qa">
+    <summary>You quote operating points at FPR = 10⁻⁴ and 10⁻⁵ from 1,042 negative flows. Justify that.</summary>
+    <div class="ans">
+      <p>It cannot be justified as a measurement — the resolution floor is 9.6 × 10⁻⁴, and a 10⁻⁵ upper bound at 95% confidence needs on the order of 3 × 10⁵ clean negatives.</p>
+      <p>Two defensible positions, and you must pick one in the text rather than leaving it ambiguous. <strong>(a)</strong> Scale the negative set and measure. <strong>(b)</strong> Keep the scale, report every measured FPR with a Clopper–Pearson interval, truncate the DET curve at 1/N, and present the base-rate table explicitly as a <em>sensitivity analysis under assumed FPR</em> — which is legitimate and is close to how Wails et al. frame their own projections. What is not defensible is a DET curve plotted an order of magnitude below the data's resolution. Fix the plot floor before the defence; it is the first thing a numerate opponent will zoom into.</p>
+    </div>
+  </details>
+</section>
+
+<footer>
+  <div class="wrap">
+    <h4>Method</h4>
+    <p>Every quantitative claim above was re-derived independently of the repository's code. 8,174 of the 9,000 captures were re-parsed with a purpose-written <code>dpkt</code> pipeline into four extraction variants (all-packets-merged, single-flow, post-handshake, offload-undone); classifiers were retrained from scratch on each variant under the repository's own session split. TLS ClientHellos were parsed by hand from the raw records. The countermeasure results were reproduced using the repository's own saved XGBoost model and its own <code>sequence_dataset.npz</code>, with the two missing controls — pipeline identity and adaptive retraining — added. Literature context: Wails, Sullivan, Sherr &amp; Jansen (NDSS 2024); Kamali &amp; Barradas, <em>Huma</em> (NDSS 2026); Zhou et al., <em>TrafficFormer</em> (IEEE S&amp;P 2025); the Tor Project's WebTunnel documentation.</p>
+    <p style="margin-top:18px">Findings are stated at the severity an external reviewer would assign, not the severity that is comfortable. The project is closer to defensible than the score suggests — the failures are concentrated in data collection, which is the cheapest layer to rebuild.</p>
+  </div>
+</footer>
