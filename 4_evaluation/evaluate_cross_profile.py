@@ -26,7 +26,8 @@ from common.config import (
     RANDOM_SEED,
     set_global_seed
 )
-from sanitizer import extract_raw_packets_from_pcap, compute_flow_statistics, build_sequence_tensor
+from sanitizer import (extract_raw_packets_from_pcap, compute_flow_statistics,
+                       build_sequence_tensor, load_manifest_for)
 from architectures import WebTunnel1DCNN
 from utils import FlowSequenceDataset, BinaryFocalLoss, compute_metrics, get_device
 
@@ -53,7 +54,14 @@ def parse_pcap(f):
     except Exception:
         sample_id = -1
 
-    pkts = extract_raw_packets_from_pcap(f)
+    # AUDIT 4.6: v2.0 called extract_raw_packets_from_pcap(f) with no manifest, which silently
+    # disabled 5-tuple demultiplexing and ran this whole experiment on contaminated, merged
+    # host-window data -- a DIFFERENT dataset from the headline results. The manifest is now
+    # mandatory, and a capture without authoritative ground truth is skipped, not analysed.
+    manifest = load_manifest_for(f)
+    if manifest is None:
+        return None
+    pkts = extract_raw_packets_from_pcap(f, manifest=manifest)
     if len(pkts) < 3:
         return None
 
@@ -62,9 +70,10 @@ def parse_pcap(f):
     label = 1 if matched_class == "webtunnel" else 0
 
     return {
-        "profile": matched_profile,
-        "class": matched_class,
+        "profile": manifest.profile or matched_profile,
+        "class": manifest.label or matched_class,
         "sample_id": sample_id,
+        "socket_id": "{}:{}->{}:{}/{}".format(*manifest.target_5tuple) if manifest.target_5tuple else str(sample_id),
         "tab": tab,
         "seq": seq,
         "label": label

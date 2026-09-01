@@ -56,9 +56,17 @@ services:
     networks:
       testbed-net:
         ipv4_address: 172.20.0.30
+    environment:
+      BRIDGE_IP: "172.20.0.10"
+      BRIDGE_PORT: "443"
+      BRIDGE_ADDR: "172.20.0.10:443"
+      BRIDGE_URL: "https://webtunnel.local/secret-path-wt-research-2026"
+      CAPTURE_IFACE: "eth0"
+      # P0.3: set to " utls-imitate=hellochrome_auto" (leading space) only after
+      # probe_utls_support.sh confirms this webtunnel build parses the argument.
+      WEBTUNNEL_EXTRA_ARGS: ""
     volumes:
       - ./webtunnel_server/certs/ca.crt:/usr/local/share/ca-certificates/ca.crt:ro
-      - ./client/traffic_generator.py:/app/traffic_generator.py:ro
       - ./router/netem_profiles.sh:/app/netem_profiles.sh:ro
       - ../data/raw_pcap:/data/raw_pcap
     working_dir: /app

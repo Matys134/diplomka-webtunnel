@@ -1,0 +1,15 @@
+# Tor client for the WebTunnel testbed.  Rendered by entrypoint.sh.
+RunAsDaemon 0
+SocksPort 0.0.0.0:9050
+Log notice file /var/lib/tor/notice.log
+DataDirectory /var/lib/tor
+
+# Keep bootstrap cheap: the collector restarts this daemon once per capture (P0.1), so the
+# cached consensus in DataDirectory is what makes a per-sample fresh socket affordable.
+UseBridges 1
+ClientTransportPlugin webtunnel exec /usr/local/bin/webtunnel-client
+Bridge webtunnel __BRIDGE_ADDR__ url=__BRIDGE_URL____BRIDGE_EXTRA__
+
+# One circuit per session; never reuse a dirty circuit across captures.
+MaxCircuitDirtiness 10
+NewCircuitPeriod 10

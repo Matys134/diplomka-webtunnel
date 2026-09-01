@@ -70,12 +70,24 @@ def generate_logarithmic_det_curve():
     # 3. Logarithmic DET Plot
     plt.figure(figsize=(9, 7))
 
-    plt.plot(np.maximum(fpr_xgb, 1e-4) * 100, np.maximum(fnr_xgb, 1e-4) * 100,
+    # F-13: v2.0 applied np.maximum(fpr, 1e-4) and set xlim to 0.01%, plotting an order of
+    # magnitude (in v2.1's smaller test split, two orders) BELOW the corpus's resolution.
+    # With n negatives the smallest observable non-zero FPR is 1/n. Nothing is drawn below it.
+    n_neg = int((y_test == 0).sum())
+    floor = 1.0 / max(1, n_neg)
+    def clip(a):
+        return np.clip(a, floor, 1.0) * 100.0
+
+    plt.plot(clip(fpr_xgb), clip(fnr_xgb),
              label="XGBoost Baseline (Tabulární)", color="#2ca02c", linewidth=2.5)
-    plt.plot(np.maximum(fpr_cnn, 1e-4) * 100, np.maximum(fnr_cnn, 1e-4) * 100,
+    plt.plot(clip(fpr_cnn), clip(fnr_cnn),
              label="1D-CNN (Deep Packet)", color="#1f77b4", linewidth=2.5, linestyle="--")
-    plt.plot(np.maximum(fpr_tf, 1e-4) * 100, np.maximum(fnr_tf, 1e-4) * 100,
+    plt.plot(clip(fpr_tf), clip(fnr_tf),
              label="Flow-Transformer ([CLS] Attention)", color="#ff7f0e", linewidth=2.5, linestyle="-.")
+    plt.axvline(x=floor * 100, color="black", linestyle="-", linewidth=1.5, alpha=0.8,
+                label=f"Rozlisovaci mez korpusu 1/n = {floor:.1e}  (n={n_neg})")
+    plt.axvspan(1e-4, floor * 100, color="grey", alpha=0.18, zorder=0,
+                label="Pod rozlisovaci mezi -- nemereno")
 
     # Reference lines for operational targets
     plt.axvline(x=0.1, color="red", linestyle=":", alpha=0.7, label=r"Cenzurní limit ($FPR = 0.1\%$)")
@@ -83,8 +95,8 @@ def generate_logarithmic_det_curve():
 
     plt.xscale("log")
     plt.yscale("log")
-    plt.xlim(0.01, 100)
-    plt.ylim(0.01, 100)
+    plt.xlim(max(1e-2, floor * 100 * 0.5), 100)
+    plt.ylim(max(1e-2, floor * 100 * 0.5), 100)
 
     plt.xlabel("False Positive Rate (FPR %) - Log Scale")
     plt.ylabel("False Negative Rate / Miss Rate (FNR %) - Log Scale")

@@ -77,10 +77,20 @@ CLASS_SHORT_NAMES = [
 # ==============================================================================
 NETEM_PROFILES = ["broadband", "lte", "lossy"]
 
+# F-07: these strings are DERIVED from the parameters netem actually applies
+# (1_testbed/router/netem_profiles.sh and the collector's netem_params()).  v1/v2.0 hand-wrote
+# "2ms RTT" / "30ms RTT" / "80ms RTT" while the script applied 20/45/90 ms, and those strings
+# went straight into the thesis plots and tables.
+NETEM_APPLIED = {
+    "broadband": {"delay": "20ms", "jitter": "4ms",  "loss": "0.05%", "rate": "200mbit"},
+    "lte":       {"delay": "45ms", "jitter": "15ms", "loss": "0.2%",  "rate": "40mbit"},
+    "lossy":     {"delay": "90ms", "jitter": "25ms", "loss": "Gilbert-Elliot ~2%", "rate": "8mbit"},
+}
+PROFILE_LABELS = {"broadband": "Broadband", "lte": "4G/LTE", "lossy": "Lossy WAN"}
 PROFILE_DISPLAY_NAMES = {
-    "broadband": "Broadband (Gigabit Fiber, 0% Loss, 2ms RTT)",
-    "lte": "4G/LTE Cellular (30ms RTT, Jitter 5ms)",
-    "lossy": "Lossy WAN (2% Packet Loss, 80ms RTT, Jitter 15ms)"
+    k: (f"{PROFILE_LABELS[k]} ({v['rate']}, RTT {v['delay']} +/- {v['jitter']}, loss {v['loss']}, "
+        f"ingress+egress)")
+    for k, v in NETEM_APPLIED.items()
 }
 
 # ==============================================================================

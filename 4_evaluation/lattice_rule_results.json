@@ -1,0 +1,196 @@
+{
+  "chosen": {
+    "model": "LatticeRule",
+    "rule": "(L - 44) mod 514 == 0 and L >= 558",
+    "threshold": 0.2,
+    "adversary": "static",
+    "n_positives": 44,
+    "n_negatives": 186,
+    "fpr_resolution_floor": 0.005376344086021506,
+    "tp": 44,
+    "fp": 0,
+    "tpr": 1.0,
+    "tpr_ci95": [
+      0.9195800602364241,
+      1.0
+    ],
+    "fpr": 0.0,
+    "fpr_ci95": [
+      0.0,
+      0.01963731126397706
+    ],
+    "fpr_upper_bound_95": 0.01963731126397706,
+    "roc_auc": 1.0,
+    "average_precision": 1.0
+  },
+  "sweep": [
+    {
+      "model": "LatticeRule",
+      "rule": "(L - 44) mod 514 == 0 and L >= 558",
+      "threshold": 0.1,
+      "adversary": "static",
+      "n_positives": 44,
+      "n_negatives": 186,
+      "fpr_resolution_floor": 0.005376344086021506,
+      "tp": 44,
+      "fp": 0,
+      "tpr": 1.0,
+      "tpr_ci95": [
+        0.9195800602364241,
+        1.0
+      ],
+      "fpr": 0.0,
+      "fpr_ci95": [
+        0.0,
+        0.01963731126397706
+      ],
+      "fpr_upper_bound_95": 0.01963731126397706,
+      "roc_auc": 1.0,
+      "average_precision": 1.0
+    },
+    {
+      "model": "LatticeRule",
+      "rule": "(L - 44) mod 514 == 0 and L >= 558",
+      "threshold": 0.2,
+      "adversary": "static",
+      "n_positives": 44,
+      "n_negatives": 186,
+      "fpr_resolution_floor": 0.005376344086021506,
+      "tp": 44,
+      "fp": 0,
+      "tpr": 1.0,
+      "tpr_ci95": [
+        0.9195800602364241,
+        1.0
+      ],
+      "fpr": 0.0,
+      "fpr_ci95": [
+        0.0,
+        0.01963731126397706
+      ],
+      "fpr_upper_bound_95": 0.01963731126397706,
+      "roc_auc": 1.0,
+      "average_precision": 1.0
+    },
+    {
+      "model": "LatticeRule",
+      "rule": "(L - 44) mod 514 == 0 and L >= 558",
+      "threshold": 0.3,
+      "adversary": "static",
+      "n_positives": 44,
+      "n_negatives": 186,
+      "fpr_resolution_floor": 0.005376344086021506,
+      "tp": 44,
+      "fp": 0,
+      "tpr": 1.0,
+      "tpr_ci95": [
+        0.9195800602364241,
+        1.0
+      ],
+      "fpr": 0.0,
+      "fpr_ci95": [
+        0.0,
+        0.01963731126397706
+      ],
+      "fpr_upper_bound_95": 0.01963731126397706,
+      "roc_auc": 1.0,
+      "average_precision": 1.0
+    },
+    {
+      "model": "LatticeRule",
+      "rule": "(L - 44) mod 514 == 0 and L >= 558",
+      "threshold": 0.4,
+      "adversary": "static",
+      "n_positives": 44,
+      "n_negatives": 186,
+      "fpr_resolution_floor": 0.005376344086021506,
+      "tp": 0,
+      "fp": 0,
+      "tpr": 0.0,
+      "tpr_ci95": [
+        0.0,
+        0.08041993976357587
+      ],
+      "fpr": 0.0,
+      "fpr_ci95": [
+        0.0,
+        0.01963731126397706
+      ],
+      "fpr_upper_bound_95": 0.01963731126397706,
+      "roc_auc": 1.0,
+      "average_precision": 1.0
+    },
+    {
+      "model": "LatticeRule",
+      "rule": "(L - 44) mod 514 == 0 and L >= 558",
+      "threshold": 0.5,
+      "adversary": "static",
+      "n_positives": 44,
+      "n_negatives": 186,
+      "fpr_resolution_floor": 0.005376344086021506,
+      "tp": 0,
+      "fp": 0,
+      "tpr": 0.0,
+      "tpr_ci95": [
+        0.0,
+        0.08041993976357587
+      ],
+      "fpr": 0.0,
+      "fpr_ci95": [
+        0.0,
+        0.01963731126397706
+      ],
+      "fpr_upper_bound_95": 0.01963731126397706,
+      "roc_auc": 1.0,
+      "average_precision": 1.0
+    },
+    {
+      "model": "LatticeRule",
+      "rule": "(L - 44) mod 514 == 0 and L >= 558",
+      "threshold": 0.6,
+      "adversary": "static",
+      "n_positives": 44,
+      "n_negatives": 186,
+      "fpr_resolution_floor": 0.005376344086021506,
+      "tp": 0,
+      "fp": 0,
+      "tpr": 0.0,
+      "tpr_ci95": [
+        0.0,
+        0.08041993976357587
+      ],
+      "fpr": 0.0,
+      "fpr_ci95": [
+        0.0,
+        0.01963731126397706
+      ],
+      "fpr_upper_bound_95": 0.01963731126397706,
+      "roc_auc": 1.0,
+      "average_precision": 1.0
+    },
+    {
+      "model": "LatticeRule",
+      "rule": "(L - 44) mod 514 == 0 and L >= 558",
+      "threshold": 0.7,
+      "adversary": "static",
+      "n_positives": 44,
+      "n_negatives": 186,
+      "fpr_resolution_floor": 0.005376344086021506,
+      "tp": 0,
+      "fp": 0,
+      "tpr": 0.0,
+      "tpr_ci95": [
+        0.0,
+        0.08041993976357587
+      ],
+      "fpr": 0.0,
+      "fpr_ci95": [
+        0.0,
+        0.01963731126397706
+      ],
+      "fpr_upper_bound_95": 0.01963731126397706,
+      "roc_auc": 1.0,
+      "average_precision": 1.0
+    }
+  ]
+}

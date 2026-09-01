@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """
 Pre- vs. Post-Handshake Classification Benchmark (TLS 1.3 0x17 Cutoff Ablation):
-Dynamically strips initial TLS handshakes at the first Application Data record (ContentType == 0x17),
-empirically proving that detection is independent of TLS metadata and driven by Tor cell quantization.
+Strips the TLS 1.3 handshake at the client's first application record AFTER its Finished, and
+reports how much discriminative power survives.
+
+This is an ABLATION, not a proof. v2.0's docstring claimed it "empirically proved that detection
+is independent of TLS metadata"; audit finding F-12 rejected that reading, because the operation
+only modifies flows that HAVE a handshake, and the accuracy staying high says nothing about why.
+The claim the thesis can make is the assertion in gate G1 plus the lattice derivation, not this
+number.
 """
 import os
 import sys
@@ -27,7 +33,8 @@ from common.config import (
     set_global_seed,
     setup_matplotlib_style
 )
-from sanitizer import extract_raw_packets_from_pcap, compute_flow_statistics, build_sequence_tensor
+from sanitizer import (extract_raw_packets_from_pcap, compute_flow_statistics,
+                       build_sequence_tensor, load_manifest_for)
 from architectures import WebTunnel1DCNN
 from utils import FlowSequenceDataset, BinaryFocalLoss, compute_metrics, get_device
 
@@ -46,7 +53,15 @@ def load_dataset_variants(post_handshake: bool = False):
         if label is None:
             continue
 
-        pkts = extract_raw_packets_from_pcap(p, post_handshake_only=post_handshake)
+        # AUDIT 4.6 / F-12: v2.0 passed no manifest here, so this ablation ran with 5-tuple
+        # demultiplexing switched off entirely. And the cutoff itself was `idx > 3`, a fixed
+        # index that ignored TLS content types. The flow builder now cuts at the client's first
+        # application record AFTER its Finished (TLS 1.3: the second client 0x17 record).
+        manifest = load_manifest_for(p)
+        if manifest is None:
+            continue
+        pkts = extract_raw_packets_from_pcap(p, manifest=manifest,
+                                             post_handshake_only=post_handshake)
         if len(pkts) < 3:
             continue
 

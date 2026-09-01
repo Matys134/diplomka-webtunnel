@@ -1,22 +1,66 @@
 {
-    "total_samples": 1546,
-    "split_strategy": "v2-Connection-Disjoint-Anti-Leakage (1-78 Train, 79-95 Val, 96-112 Test)",
+    "total_captures": 2016,
+    "total_flows": 1542,
+    "yield_pct": 76.49,
+    "group_key": "socket_id",
+    "split_strategy": "v2.1 group-disjoint on socket_id (70/15/15, stratified by class)",
     "classes": {
-        "webtunnel": 296,
         "direct_web_browsing": 292,
-        "websocket_ticker": 295,
-        "websocket_chat": 297,
-        "video_streaming": 265,
-        "web_assets": 101
+        "video_streaming": 264,
+        "web_assets": 101,
+        "websocket_chat": 296,
+        "websocket_ticker": 294,
+        "webtunnel": 295
+    },
+    "distinct_sockets": 1371,
+    "distinct_sockets_by_class": {
+        "direct_web_browsing": 287,
+        "video_streaming": 261,
+        "web_assets": 101,
+        "websocket_chat": 294,
+        "websocket_ticker": 291,
+        "webtunnel": 173
+    },
+    "flows_with_client_syn": 1417,
+    "flows_with_full_handshake": 1534,
+    "provenance": {
+        "repaired-legacy": 1542
     },
     "splits": {
-        "train": 1069,
-        "val": 238,
-        "test": 239
+        "train": 1077,
+        "val": 235,
+        "test": 230
     },
-    "tabular_feature_count": 48,
+    "negatives_in_test": 186,
+    "fpr_resolution_floor": 0.005376344086021506,
+    "tabular_feature_count": 50,
     "sequence_shape": [
         200,
         2
-    ]
+    ],
+    "attrition": {
+        "direct_web_browsing": {
+            "legacy_no_socket": 43,
+            "too_few_records": 1
+        },
+        "video_streaming": {
+            "legacy_no_socket": 72
+        },
+        "web_assets": {
+            "legacy_no_socket": 235
+        },
+        "websocket_chat": {
+            "legacy_no_socket": 38,
+            "too_few_records": 1,
+            "no_tls_records": 1
+        },
+        "websocket_ticker": {
+            "legacy_no_socket": 40,
+            "no_tls_records": 2
+        },
+        "webtunnel": {
+            "legacy_no_socket": 38,
+            "too_few_records": 3
+        }
+    }
 }

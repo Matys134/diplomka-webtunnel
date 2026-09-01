@@ -14,7 +14,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from common.config import RAW_PCAP_DIR, PLOTS_DIR, CLASSES, CLASS_DISPLAY_NAMES, setup_matplotlib_style
-from sanitizer import extract_raw_packets_from_pcap
+from sanitizer import extract_raw_packets_from_pcap, load_manifest_for
 
 
 def main():
@@ -26,7 +26,10 @@ def main():
     for c in CLASSES:
         files = glob.glob(os.path.join(RAW_PCAP_DIR, f"{c}_*.pcap"))
         for f in files:
-            pkts = extract_raw_packets_from_pcap(f)
+            manifest = load_manifest_for(f)
+            if manifest is None:
+                continue
+            pkts = extract_raw_packets_from_pcap(f, manifest=manifest)
             if not pkts:
                 continue
             lens = [abs(p[1]) for p in pkts]

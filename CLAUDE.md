@@ -87,22 +87,32 @@ offload. It is a genuine protocol invariant and it is the thesis's contribution.
 
 ## 4. Current state and what to do next
 
-The plan's **Phase 0 / Week 1** deliverables are already in this repo:
+The project has been through **two** adversarial audits. `docs/04-v2-audit.md` is the second
+one, plus the remediation log for it. The code is now at **v2.1** on branch `v2-remediation`.
 
-- `project/common/contracts.py` — the v2 data contract (`CaptureManifest`, `FlowRecord`)
-- `project/checks/` — the six build gates, runnable today
+All P0 items from the second audit are implemented:
+fresh bridge socket per sample, real 5-tuple recording, ALPN parity, no negative payload
+ceiling, verified offload disabling, true TCP reassembly, correct TLS 1.3 handshake cutoff,
+six falsifiable gates (`checks/test_gates.py` — 15/15), gates wired in as a blocking phase,
+record-level defences with an adaptive adversary, empirical LLR aggregation, and the
+zero-parameter lattice rule.
 
-**Next actions, in order** (see `docs/02-rebuild-plan.md` §6 for the full schedule):
+**Nothing is validated yet.** The corpus on disk was captured by the v2.0 collector, and all six
+gates correctly refuse it. Next actions, in order:
 
-1. Run `python3 project/checks/run_gates.py --dataset project/data/processed/tabular_dataset.npz`
-   against the **v1** dataset and watch it fail correctly. The output table is a thesis figure.
-2. Rewrite `1_testbed/client/traffic_generator.py` as a single Go client with uTLS parity.
-3. Rewrite `1_testbed/capture/collect_scaled_dataset.py`: one TCP connection per sample,
-   BPF-filtered capture, sidecar manifests, randomised class interleaving.
-4. Rewrite `2_data_pipeline/sanitizer.py` as a flow builder emitting `FlowRecord`.
-5. 2,000-flow pilot → all gates green → **only then** start the 80-hour campaign.
+1. `docker compose -f 1_testbed/docker-compose.yml build client` — the Go generator has never
+   been compiled; that is the one thing the remediation could not check.
+2. `docker compose exec client /usr/local/bin/probe_utls_support.sh` — decide the uTLS question
+   BEFORE capturing. If the PT accepts `utls-imitate`, set `WEBTUNNEL_EXTRA_ARGS` in
+   docker-compose; if it does not, that is a reportable finding and G1 relaxes to
+   post-handshake parity.
+3. `venv/bin/python3 1_testbed/capture/collect_scaled_dataset.py --pilot` (2,016 captures).
+4. `venv/bin/python3 2_data_pipeline/build_dataset.py && venv/bin/python3 checks/run_gates.py \
+   --dataset data/processed/tabular_dataset.npz`
+5. Iterate the testbed until all six are green. **Only then** the 80-hour campaign.
 
----
+Expect two or three pilot iterations. G4 (budget parity) and G3 (early-vs-late drift) are the
+likely holdouts.
 
 ## 5. Hard rules for this project
 
@@ -179,18 +189,23 @@ Target is a **solid, safely defensible thesis** — not a publication. Explicitl
 ```
 ├── CLAUDE.md                 ← you are here
 ├── README.md                 ← human-facing orientation and quickstart
-├── requirements-working.txt  ← pinned versions that actually resolve
+├── requirements.txt          ← pinned to versions that actually resolve
 ├── docs/
-│   ├── 01-audit-findings.md  ← the 18 findings
+│   ├── 01-audit-findings.md  ← first audit, F-01..F-18
 │   ├── 02-rebuild-plan.md    ← the 16-week plan
 │   ├── 03-evidence.md        ← raw measured numbers
-│   ├── audit-report.html     ← rendered audit
-│   └── rebuild-plan.html     ← rendered plan
+│   ├── 04-v2-audit.md        ← SECOND audit + the v2.1 remediation log
+│   └── *.html                ← rendered reports
 ├── audit/                    ← re-runnable verification scripts (need the PCAPs)
-├── project/                  ← the v1 thesis repo, unchanged except: keys removed,
-│   │                           contracts.py + checks/ added
-│   ├── common/contracts.py   ← NEW: the v2 data contract
-│   ├── checks/               ← NEW: the six build gates
-│   └── …                     ← v1 code, results, models, processed datasets
-└── reference/                ← assignment protocol, both draft roadmaps, final roadmap
+├── common/                   ← config.py, contracts.py (CaptureManifest, FlowRecord, lattice)
+├── checks/                   ← the six gates + test_gates.py (gate self-test)
+├── 1_testbed/                ← docker-compose, Go generator, tor lifecycle scripts, netem
+├── 2_data_pipeline/          ← sanitizer.py (reassembly), build_dataset.py
+├── 3_models/                 ← XGBoost, 1D-CNN, Transformer, lattice_rule.py
+├── 4_evaluation/             ← defences, base rate, DET, cascade, XAI, LaTeX export
+├── 0_thesis_text/tables/     ← generated LaTeX
+└── reference/                ← assignment protocol, roadmaps
 ```
+
+Note: there is no `project/` directory any more — the layout was flattened. Anything in the
+older docs that refers to `project/...` means the repository root.

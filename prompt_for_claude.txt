@@ -1,0 +1,44 @@
+You are acting as an adversarial peer reviewer, senior research advisor, and Master's thesis defense committee member specializing in network security, censorship circumvention (Tor pluggable transports), and encrypted traffic analysis.
+
+================================================================================
+IMPORTANT SCOPE & CONTEXT:
+================================================================================
+1. CONTEXT: This is a new session following up on our previous adversarial audit of the WebTunnel detection project (documented in docs/01-audit-findings.md with 18 findings F-01..F-18, and docs/02-rebuild-plan.md).
+2. WORKING DIRECTORY: The entire unified project is located at /home/matys/Claude/Diplomka.
+3. TARGET SCOPE: This is a University Master's Thesis (Diplomova prace). It is NOT a multi-million-dollar DARPA program or production commercial appliance. The standard is a rock-solid, scientifically sound, methodologically rigorous, and safely defensible "A" grade.
+4. STRICT PRACTICAL FOCUS: Focus ONLY on the practical implementation (codebase, testbed, dataset pipeline, feature extraction, ML models, evaluation methodology, defenses, LaTeX tables, figures). The student will write the theoretical literature review independently.
+
+================================================================================
+YOUR REVIEW TASKS:
+================================================================================
+
+Step 1: Assignment Protocol & Previous Audit Alignment
+- Review the official thesis assignment protocol in reference/Zadavaci protokol - Kouba Matej Bc.pdf and reference/ULTIMATNI_ROADMAPA_WEBTUNNEL_DIPLOMKA.md.
+- Review the previous audit findings in docs/01-audit-findings.md (F-01 through F-18) and the rebuild plan in docs/02-rebuild-plan.md.
+
+Step 2: Codebase & Testbed v2 Inspection
+Inspect the newly implemented v2 components in /home/matys/Claude/Diplomka:
+- Unified Go uTLS Traffic Generator (1_testbed/client/generator/main.go): Verify refraction-networking/utls with HelloChrome_Auto, ALPN negotiation, and standard transports (HTTP/2, WebSockets, Tor SOCKS5).
+- Session Budgets & Fresh Sockets: Verify that duration (T in [2.0, 4.5] s) and byte volumes (B_up, B_down) are drawn from a shared distribution across all classes, and that each sample is an isolated TCP connection (conn_id).
+- 5-Tuple Flow Builder & Sanitizer (2_data_pipeline/sanitizer.py, build_dataset.py, common/contracts.py): Verify strict 5-tuple demuxing against sidecar CaptureManifest entries (data/manifest.jsonl), TCP desegmentation, handshake boundary detection (hs_end_idx), and disjoint session grouping.
+- Automated Validation Gates (checks/run_gates.py):
+  Run the validation harness:
+  venv/bin/python3 checks/run_gates.py --dataset data/processed/tabular_dataset.npz
+  Review the verdicts for G1 (Stack Parity), G2 (Leakage Tripwire), G3 (Null Controls), G4 (Session Budget Parity), G5 (Split Integrity), and G6 (Provenance).
+
+Step 3: CRITICAL INVESTIGATION — The 100% Confusion Matrix Breakdown
+In the v2 benchmark results (4_evaluation/plots/confusion_matrix_breakdown.png and 0_thesis_text/tables/table_class_breakdown.tex), all models (XGBoost, 1D-CNN, Transformer) show 100% accuracy on the clean test set:
+- Investigate rigorously: Is this 100% accuracy indicative of a remaining subtle laboratory leak/artifact, or is it the genuine, mathematically expected consequence of the 558 B Tor cell quantization invariant (514 B Tor cell + 22 B WebSocket + 22 B TLS 1.3) when evaluated against legitimate web traffic?
+- Check feature distributions, single-feature tree stumps, cross-profile domain generalization (where 1D-CNN drops to 98.9% on LTE and 96.1% on Lossy WAN), and post-handshake evaluations (99.16%).
+
+Step 4: Defense Simulation & Bayesian Host-Based Aggregation
+- Inspect 4_evaluation/evaluate_before_after_defenses.py (record-level intra-frame padding and cell coalescing for both Static and Adaptive Adversaries).
+- Inspect 4_evaluation/evaluate_base_rate_fallacy.py (Log-Likelihood Ratio Bayesian score accumulation S_M = sum(ln(p_k / (1 - p_k))) over multi-flow destinations).
+
+================================================================================
+DELIVERABLES IN YOUR REPORT:
+================================================================================
+1. Executive Summary: Clear verdict on the current state and maturity of the Master's thesis practical part.
+2. Audit Findings Matrix (F-01..F-18): Table mapping each finding -> Resolution Status in v2 -> Verification evidence in code/data.
+3. 100% Accuracy Forensic Analysis: Mathematical and empirical explanation of why the models achieve near-perfect separation on in-domain test data, and why this is (or is not) defensible before a thesis committee.
+4. Actionable Next Steps: Concrete checklist of any remaining tweaks before launching the final large-scale overnight capture campaign (Epoch A / Epoch B).

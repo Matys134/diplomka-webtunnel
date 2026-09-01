@@ -17,23 +17,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     netcat-traditional \
     procps \
+    psmisc \
     tcpdump \
     iproute2 \
     ethtool \
-    python3 \
-    python3-pip \
-    python3-requests \
-    python3-socks \
-    python3-websockets \
-    python3-httpx \
-    python3-h2 \
+    binutils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /webtunnel-client /usr/local/bin/webtunnel-client
-COPY --from=builder /traffic-generator /usr/local/bin/traffic-generator
-COPY torrc /etc/tor/torrc
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh /usr/local/bin/webtunnel-client /usr/local/bin/traffic-generator
+COPY --from=builder /webtunnel-client   /usr/local/bin/webtunnel-client
+COPY --from=builder /traffic-generator  /usr/local/bin/traffic-generator
+COPY torrc.tmpl             /etc/tor/torrc.tmpl
+COPY entrypoint.sh          /entrypoint.sh
+COPY offload_off.sh         /usr/local/bin/offload_off.sh
+COPY stop_tor.sh            /usr/local/bin/stop_tor.sh
+COPY start_tor.sh           /usr/local/bin/start_tor.sh
+COPY probe_utls_support.sh  /usr/local/bin/probe_utls_support.sh
+RUN chmod +x /entrypoint.sh \
+             /usr/local/bin/webtunnel-client \
+             /usr/local/bin/traffic-generator \
+             /usr/local/bin/offload_off.sh \
+             /usr/local/bin/stop_tor.sh \
+             /usr/local/bin/start_tor.sh \
+             /usr/local/bin/probe_utls_support.sh
 
 EXPOSE 9050
 ENTRYPOINT ["/entrypoint.sh"]

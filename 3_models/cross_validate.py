@@ -61,7 +61,14 @@ def evaluate_cv(n_splits=5, seed=RANDOM_SEED):
     y_mul = np.concatenate([tab_data["y_train_mul"], tab_data["y_val_mul"], tab_data["y_test_mul"]], axis=0)
 
     # Use real session IDs (1..100) extracted during capture
-    if tab_data.get("sample_ids_all") is not None:
+    # F-11 / CLAUDE.md hard rule: the grouping key is the CONNECTION, not the sample index.
+    # v2.0 saved conn_ids_all and socket_ids_all into the .npz and then grouped on sample_id
+    # anyway, so a socket spanning 234 captures was split across folds.
+    if tab_data.get("socket_ids_all") is not None:
+        groups = tab_data["socket_ids_all"]
+    elif tab_data.get("conn_ids_all") is not None:
+        groups = tab_data["conn_ids_all"]
+    elif tab_data.get("sample_ids_all") is not None:
         groups = tab_data["sample_ids_all"]
     elif tab_data.get("sample_ids_train") is not None:
         groups = np.concatenate([tab_data["sample_ids_train"], tab_data["sample_ids_val"], tab_data["sample_ids_test"]], axis=0)

@@ -1,0 +1,66 @@
+You are an expert autonomous software engineer and security researcher. You conducted the Second-Pass Adversarial Audit (docs/04-v2-audit.md) on this WebTunnel detection thesis project located at /home/matys/Claude/Diplomka.
+
+================================================================================
+MISSION: EXECUTE REMEDIATION PLAN (P0 BLOCKING + DOWNSTREAM FIXES)
+================================================================================
+The thesis author fully accepts your second-pass audit findings (Verdict 5.5/10) and has granted you full permission to directly refactor, edit, and fix the codebase, testbed, validation harness, and evaluation pipeline.
+
+Your goal is to implement all P0 blocking fixes from Section 6 of docs/04-v2-audit.md, verify that all 6 validation gates pass legitimately (without registry inflation or vacuous checks), and re-run the 2,000-flow pilot so the testbed is 100% ready for the final campaign.
+
+================================================================================
+ACTIONABLE TASK CHECKLIST:
+================================================================================
+
+### PHASE 1: TESTBED & PROVENANCE (P0.1, P0.2, P0.3, P0.4, P0.5)
+1. Fresh Tor Bridge Socket per Sample (P0.1):
+   - Replace `pkill -HUP tor` with a full process restart / circuit tear-down that guarantees a fresh client ephemeral port.
+   - Add verification: ensure every WebTunnel capture starts with a client TCP SYN on a port not seen in previous captures.
+2. Real WebTunnel 5-Tuple Recording (P0.2):
+   - In `1_testbed/client/generator/main.go`, eliminate hardcoded `172.20.0.3` / `client_port: 0`.
+   - Capture the real client port from `ss -tnp state established '( dport = :443 )'` or PT logs, and write the true 5-tuple into `.manifest.json`.
+   - Remove `t_sport == 0` wildcard matching and hardcoded IP checks in `2_data_pipeline/sanitizer.py`.
+3. Eliminate the Negative Upstream Record Ceiling (P0.5 — Kills the 100% Artificial Separation):
+   - In `1_testbed/client/generator/main.go`, remove the arbitrary 830 B cap on negative classes.
+   - Allow upstream request/message payloads to draw across the full distribution up to MSS (bulk POSTs, file uploads, large WebSocket frames 100 B - 1400 B).
+4. ALPN Parity (P0.4):
+   - Standardize ALPN negotiation across classes to `["h2", "http/1.1"]` so ClientHello lengths do not leak transport type.
+
+### PHASE 2: CAPTURE OFFLOAD & TCP DESEGMENTATION (P0.6, P0.7, P0.8)
+5. True Offload Disabling & Verification (P0.6):
+   - Execute `ethtool -K eth0 tso off gso off gro off` inside containers and assert that no captured frame exceeds MSS.
+6. Real TCP Desegmentation in Flow Builder (P0.7):
+   - In `2_data_pipeline/sanitizer.py`, implement a per-direction TCP reassembly buffer. Parse TLS records from the reassembled byte stream and remove the `min(pkt_len, 1500)` fallback clamp.
+7. Accurate `hs_end_idx` Handshake Cutoff (P0.8):
+   - Identify the client's TLS 1.3 Finished record by content type / handshake structure and set `hs_end_idx` to the first application record immediately following it.
+
+### PHASE 3: FALSIFIABLE GATES & HARNESS (P0.9, P0.10, P0.11)
+8. Make the 6 Gates Truly Falsifiable (P0.9):
+   - G1: Populate JA4 / extension IDs; assert ClientHello parity across all classes contributing handshakes.
+   - G2: Prune `expected_invariants.py`. Remove `up_len_max`, `up_len_std`, `len_p90`, `down_len_p90`. Register ONLY the genuine arithmetic lattice invariant: (L - 44) mod 514 == 0.
+   - G3: Implement paired same-generator/different-label control and run over multiple seeds with CI.
+   - G4: Paired session budget test (same drawn budget triple given to both positive and negative generators).
+   - G5: Check `conn_id` disjointness across splits with `assert_split_disjoint()`, verifying no TCP port spans splits.
+   - G6: Validate flow 5-tuple strictly against `manifest.target_5tuple` and log drop reasons per class.
+9. Wire Gates into Benchmark (P0.10):
+   - Integrate `checks/run_gates.py` into `run_full_benchmark.py` so any gate failure halts the pipeline.
+10. Implement Zero-Parameter Lattice Rule:
+    - Add the deterministic baseline model: ">=20% of upstream records satisfy (L - 44) mod 514 == 0" (TPR ~0.9899, FPR 0).
+
+### PHASE 4: DEFENSES & BAYESIAN EVALUATION (P2.1, P2.2, P2.3)
+11. Defense Simulation (P2.1):
+    - Delete `recompute_tabular_features()`. Apply padding and coalescing directly to raw packet traces without clamping/truncating large WebTunnel records.
+    - Evaluate both Static Adversary (frozen model) and Adaptive Adversary (retrained model).
+12. Host-Based Bayesian LLR Aggregation (P2.2):
+    - Replace hardcoded Gaussians with empirical LLR sum: S_M = sum(ln(p_k / (1 - p_k))) using calibrated model probabilities grouped by destination.
+13. Fix Evaluation Manifest Passing:
+    - Pass manifest metadata in `evaluate_cross_profile.py` and `evaluate_post_handshake.py` so 5-tuple demuxing is active.
+
+================================================================================
+EXECUTION PLAN:
+================================================================================
+1. Modify the files directly in `/home/matys/Claude/Diplomka`.
+2. Rebuild the Docker client image: `docker compose -f 1_testbed/docker-compose.yml build client`.
+3. Run the pilot capture: `venv/bin/python3 1_testbed/capture/collect_scaled_dataset.py --pilot`.
+4. Run dataset build and verify all gates: `venv/bin/python3 checks/run_gates.py --dataset data/processed/tabular_dataset.npz`.
+5. Run full benchmark: `venv/bin/python3 run_full_benchmark.py`.
+6. Provide a concise summary of the verified results.

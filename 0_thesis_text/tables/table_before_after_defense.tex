@@ -1,22 +1,16 @@
 \begin{table}[htbp]
 \centering
-\caption{Účinnost navržených protiopatření: Degradace detekčního Recallu a datová režie}
+\caption{Ucinnost protiopatreni proti statickemu a adaptivnimu protivnikovi. Adaptivni protivnik je cenzor, ktery model pretrenuje na branenem provozu.}
 \label{tab:before_after_defense}
-\begin{tabular}{llccc}
+\begin{tabular}{llcccc}
 \hline
-\textbf{Klasifikátor} & \textbf{Režim obrany} & \textbf{Accuracy} & \textbf{Recall (Úspěšnost cenzora)} & \textbf{Datová režie} \\
+\textbf{Obrana} & \textbf{Protivnik} & \textbf{Recall} & \textbf{ROC-AUC} & \textbf{Datova rezie} & \textbf{Latence (ms)} \\
 \hline
-1D-CNN & 1. Bez obrany (WebTunnel baseline) & 100.0\% & 100.0\% & 0.0\% \\
- & 2. Adaptivní Intra-frame Padding (1--128B) & 100.0\% & 100.0\% & -22.7\% \\
- & 3. Cell Coalescing \& Cover Shaping & 100.0\% & 100.0\% & 0.0\% \\
-\hline
-Transformer & 1. Bez obrany (WebTunnel baseline) & 100.0\% & 100.0\% & 0.0\% \\
- & 2. Adaptivní Intra-frame Padding (1--128B) & 100.0\% & 100.0\% & -22.7\% \\
- & 3. Cell Coalescing \& Cover Shaping & 100.0\% & 100.0\% & 0.0\% \\
-\hline
-XGBoost & 1. Bez obrany (WebTunnel baseline) & 100.0\% & 100.0\% & 0.0\% \\
- & 2. Adaptivní Intra-frame Padding (1--128B) & 100.0\% & 100.0\% & -22.7\% \\
- & 3. Cell Coalescing \& Cover Shaping & 100.0\% & 100.0\% & 0.0\% \\
+none & static & 100.0\% & 1.0000 & 0.0\% & 0.0 \\
+mode1 padding & static & 100.0\% & 1.0000 & 4.5\% & 0.0 \\
+mode1 padding & adaptive & 100.0\% & 1.0000 & 4.5\% & 0.0 \\
+mode2 coalesce chatter & static & 100.0\% & 1.0000 & 2.3\% & 46.7 \\
+mode2 coalesce chatter & adaptive & 100.0\% & 1.0000 & 2.3\% & 46.7 \\
 \hline
 \end{tabular}
 \end{table}

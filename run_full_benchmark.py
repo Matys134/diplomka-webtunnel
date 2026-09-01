@@ -68,6 +68,9 @@ def main():
                         help="Počet PCAP vzorků na třídu a síťový profil (100 = 1800 celkem)")
     parser.add_argument("--skip-capture", action="store_true",
                         help="Přeskočit sběr PCAPů a spustit pipeline na existujících datech")
+    parser.add_argument("--allow-failing-gates", action="store_true",
+                        help="DIAGNOSTIC ONLY: continue past a failing build gate. Never use this "
+                             "for results that go into the thesis (audit principle P3).")
     args = parser.parse_args()
 
     sys.stdout = Logger(LOG_FILE)
@@ -99,13 +102,36 @@ def main():
         print("[*] Fáze sběru PCAPů přeskočena na vyžádání (--skip-capture).")
 
     # 2. Datová pipeline
-    timings["build_dataset"] = run_step("L7 Sanitace a stavba datasetu (Session-Stratified-Anti-Leakage)", f"{VENV_PYTHON} 2_data_pipeline/build_dataset.py")
+    timings["build_dataset"] = run_step(
+        "Flow builder v2.1 (TCP reassembly, strict 5-tuple demux, socket-disjoint split)",
+        f"{VENV_PYTHON} 2_data_pipeline/build_dataset.py")
+
+    # ---------------------------------------------------------------------
+    # BUILD GATES -- BLOCKING.  Audit principle P3: "a dataset that does not pass the gates
+    # never reaches a model".  v2.0 had 15 phases and this was in none of them, so a corpus
+    # with G1 and G4 red produced three trained models and six LaTeX tables unobstructed.
+    # run_step() exits non-zero on failure, which is exactly the desired behaviour.
+    # ---------------------------------------------------------------------
+    gate_cmd = (f"{VENV_PYTHON} checks/run_gates.py "
+                f"--dataset data/processed/tabular_dataset.npz "
+                f"--sequences data/processed/sequence_dataset.npz "
+                f"--json data/processed/gates.json")
+    if args.allow_failing_gates:
+        gate_cmd += " --allow-fail"
+        print("\n[!] --allow-failing-gates is set. Results from this run are DIAGNOSTIC ONLY "
+              "and must not be quoted in the thesis.\n")
+    timings["build_gates"] = run_step("Validační brány G1-G6 (BLOKUJÍCÍ)", gate_cmd)
+
     timings["inspect_dataset"] = run_step("Generování spektrálních a IAT distribučních grafů", f"{VENV_PYTHON} 2_data_pipeline/inspect_dataset.py")
 
     # 3. Trénování modelů
     timings["train_xgboost"] = run_step("Trénování XGBoost Baseline modelu s kalibrací prahu", f"{VENV_PYTHON} 3_models/train_xgboost.py")
     timings["train_1d_cnn"] = run_step("Trénování PyTorch 1D-CNN (CUDA) s Focal Loss", f"{VENV_PYTHON} 3_models/train_1d_cnn.py")
     timings["train_transformer"] = run_step("Trénování Flow-Transformeru ([CLS] Token Attention)", f"{VENV_PYTHON} 3_models/train_transformer.py")
+    # The zero-parameter baseline: two integer operations, no training. See docs/04-v2-audit.md 4.4.
+    timings["lattice_rule"] = run_step(
+        "Deterministické pravidlo Tor cell lattice ((L-44) mod 514 == 0)",
+        f"{VENV_PYTHON} 3_models/lattice_rule.py --split test")
 
     # 4. 5-Fold Stratified Group Cross-Validation
     timings["cross_validation"] = run_step("5-Fold Session-Stratifikovaná křížová validace", f"{VENV_PYTHON} 3_models/cross_validate.py")
@@ -114,13 +140,13 @@ def main():
     timings["explainability"] = run_step("Explainable AI (SHAP & Input Gradient Saliency)", f"{VENV_PYTHON} 3_models/explain_models.py")
 
     # 6. Evaluační experimenty
-    timings["post_handshake"] = run_step("Pre- vs. Post-Handshake ablace (TLS 1.3 0x17 Cutoff)", f"{VENV_PYTHON} 4_evaluation/evaluate_post_handshake.py")
+    timings["post_handshake"] = run_step("Pre- vs. Post-Handshake ablace (klientsky Finished, manifest-aware)", f"{VENV_PYTHON} 4_evaluation/evaluate_post_handshake.py")
     timings["cross_profile"] = run_step("Doménový posun a generalizace (Broadband -> LTE & Lossy)", f"{VENV_PYTHON} 4_evaluation/evaluate_cross_profile.py")
-    timings["defenses"] = run_step("Simulace protokolárních obran (Padding & Cell Coalescing)", f"{VENV_PYTHON} 4_evaluation/evaluate_before_after_defenses.py")
+    timings["defenses"] = run_step("Obrany na urovni TLS zaznamu: staticky i adaptivni protivnik", f"{VENV_PYTHON} 4_evaluation/evaluate_before_after_defenses.py")
     timings["cascaded_pipeline"] = run_step("2-Tier kaskádová architektura (L1 CPU -> L2 GPU)", f"{VENV_PYTHON} 4_evaluation/evaluate_cascaded_pipeline.py")
     timings["det_curve"] = run_step("Logaritmická DET křivka cenzora", f"{VENV_PYTHON} 4_evaluation/evaluate_det_curve.py")
     timings["confusion_breakdown"] = run_step("Dekompozice chybovosti po třídách a konfuzní matice", f"{VENV_PYTHON} 4_evaluation/evaluate_confusion_matrix.py")
-    timings["base_rate_fallacy"] = run_step("Base Rate Fallacy a host-based Bayesovská agregace", f"{VENV_PYTHON} 4_evaluation/evaluate_base_rate_fallacy.py")
+    timings["base_rate_fallacy"] = run_step("Base Rate Fallacy a empiricka LLR agregace podle destinace", f"{VENV_PYTHON} 4_evaluation/evaluate_base_rate_fallacy.py")
 
     # 7. Export LaTeX tabulek
     timings["latex_tables"] = run_step("Generování synchronizovaných LaTeX tabulek", f"{VENV_PYTHON} 4_evaluation/export_latex_tables.py")

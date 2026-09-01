@@ -1,329 +1,302 @@
 #!/usr/bin/env python3
 """
-Protocol-Level Countermeasures Evaluation:
-Simulates and evaluates:
-1. Mode 1: Lightweight Adaptive Intra-frame Padding (1-128 Bytes random padding + micro-jitter, ~4-5% overhead).
-2. Mode 2: Cell Coalescing & Cover Traffic Shaping (Coalesces 514B cells into 1448B frames + cover traffic, ~11-14% overhead).
-Evaluates XGBoost, 1D-CNN, and Flow-Transformer before vs. after defense.
-Exports LaTeX tables and publication figures.
+Protocol-level countermeasures, evaluated against a STATIC and an ADAPTIVE adversary.
+
+Everything here is a rewrite. What v2.0 did and why it was invalid (docs/04-v2-audit.md 5.1):
+
+  * `recompute_tabular_features()` rebuilt features from the normalised 200x2 tensor by
+    round-tripping the IAT channel through expm1(x*10). The "before" arm used the stored
+    X_test; the "after" arm used that reconstruction. Before and after were two different
+    pipelines, so the reported drop measured the reconstruction, not the defence. Running
+    UNDEFENDED traffic through it gave 24.89% recall -- lower than the 36.0% reported for
+    defended traffic. That function is DELETED.
+  * Mode 1 "padding" applied `min(1480.0, orig + pad)`, which SHRINKS WebTunnel's 2100 B and
+    3642 B records. That is truncation, and it was doing most of the apparent work.
+  * `max(0.0, overhead)` hid the fact that coalescing removes bytes before padding adds them.
+  * There was no adaptive adversary anywhere in the repository.
+
+v2.1:
+  * defences operate on the real TLS record trace in FlowRecord.records -- lengths, directions
+    and timestamps -- never on a normalised tensor, and never with an MTU clamp;
+  * both arms go through ONE feature pipeline (sanitizer.compute_flow_statistics);
+  * every result carries `adversary` and `n_negatives`, per audit principle P5;
+  * overhead is reported in BOTH bytes and added latency, and it is signed.
 """
+from __future__ import annotations
+
+import argparse
+import json
 import os
 import sys
+from typing import Dict, List, Optional, Sequence, Tuple
+
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import torch
-import xgboost as xgb
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+for p in (PROJECT_ROOT, os.path.join(PROJECT_ROOT, "2_data_pipeline"),
+          os.path.join(PROJECT_ROOT, "3_models")):
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
-from common.config import (
-    TABULAR_DATASET_PATH,
-    SEQUENCE_DATASET_PATH,
-    XGBOOST_MODEL_JSON,
-    CNN_MODEL_PATH,
-    TRANSFORMER_MODEL_PATH,
-    PLOTS_DIR,
-    LATEX_TABLES_DIR,
-    RANDOM_SEED,
-    set_global_seed,
-    setup_matplotlib_style
-)
-from sanitizer import compute_flow_statistics
-from architectures import WebTunnel1DCNN, WebTunnelTransformer
-from utils import load_tabular_data, load_sequence_data, compute_metrics, get_device
+from common.config import LATEX_TABLES_DIR, RANDOM_SEED  # noqa: E402
+from common.contracts import on_tor_lattice              # noqa: E402
+from sanitizer import MAX_TLS_RECORD, compute_flow_statistics  # noqa: E402
 
+from sklearn.ensemble import HistGradientBoostingClassifier   # noqa: E402
+from sklearn.metrics import (average_precision_score, roc_auc_score,  # noqa: E402
+                             accuracy_score, precision_score, recall_score)
 
-def simulate_lightweight_padding(X_seq, y_bin):
-    """Mode 1: Lightweight Adaptive Intra-frame Padding (1-128 Bytes random padding + micro-jitter)."""
-    X_def = X_seq.copy()
-    total_orig = 0
-    total_pad = 0
+try:
+    import xgboost as xgb
+    HAVE_XGB = True
+except Exception:
+    HAVE_XGB = False
 
-    for i in range(len(y_bin)):
-        if y_bin[i] == 1:
-            for s in range(X_def.shape[1]):
-                norm_len = X_def[i, s, 0]
-                norm_iat = X_def[i, s, 1]
-                if abs(norm_len) < 1e-4:
-                    continue
-                orig_bytes = abs(norm_len) * 1500.0
-                total_orig += orig_bytes
+Record = Tuple[float, int, int]          # (t, direction, tls_record_len)
 
-                pad = np.random.randint(1, 129)
-                final_bytes = min(1480.0, orig_bytes + pad)
-                total_pad += (final_bytes - orig_bytes)
-
-                jitter_iat = min(1.0, norm_iat + np.random.uniform(0.001, 0.03))
-                sign = 1.0 if norm_len > 0 else -1.0
-                X_def[i, s, 0] = sign * (final_bytes / 1500.0)
-                X_def[i, s, 1] = jitter_iat
-
-    overhead_pct = (total_pad / max(total_orig, 1.0)) * 100.0
-    return X_def, overhead_pct
+# HTTP/2 control-frame sizes measured in the legitimate classes: WINDOW_UPDATE / PING /
+# SETTINGS land at 43-48 B on the wire. WebTunnel -- one long-lived stream with no flow-control
+# dynamics -- emits none, and that absence is half the signal (F-06, and Huma NDSS 2026).
+CONTROL_RECORD_SIZES = (43, 45, 46, 47, 48, 52, 58)
 
 
-def simulate_full_cell_coalescing_and_morphing(X_seq, y_bin):
-    """Mode 2: Physical Cell Coalescing into MTU (1448B) Frames and Cover Traffic Shaping."""
-    X_def = np.zeros_like(X_seq)
-    total_orig_bytes = 0
-    total_def_bytes = 0
+# ---------------------------------------------------------------------------
+# Defences, applied to the real record trace
+# ---------------------------------------------------------------------------
 
-    for i in range(len(y_bin)):
-        if y_bin[i] == 0:
-            X_def[i] = X_seq[i]
-            continue
+def defend_pad(records: Sequence[Record], rng: np.random.RandomState,
+               lo: int = 1, hi: int = 128) -> Tuple[List[Record], int, float]:
+    """Mode 1 -- intra-record padding, 1..128 B, upstream only.
 
-        raw_pkts = []
-        for s in range(X_seq.shape[1]):
-            val = X_seq[i, s, 0]
-            if abs(val) < 1e-4:
-                continue
-            direction = 1 if val > 0 else -1
-            length = int(round(abs(val) * 1500.0))
-            iat = float(X_seq[i, s, 1])
-            raw_pkts.append((direction, length, iat))
-            total_orig_bytes += length
-
-        if not raw_pkts:
-            continue
-
-        coalesced_pkts = []
-        curr_dir = None
-        curr_buf = 0
-        curr_iat = 0.0
-
-        for direction, length, iat in raw_pkts:
-            if curr_dir is None:
-                curr_dir = direction
-                curr_buf = length
-                curr_iat = iat
-            elif curr_dir == direction:
-                if curr_buf + length <= 1448:
-                    curr_buf += length
-                    curr_iat += iat * 0.5
-                else:
-                    coalesced_pkts.append((curr_dir, curr_buf, curr_iat))
-                    curr_buf = length
-                    curr_iat = iat
-            else:
-                coalesced_pkts.append((curr_dir, curr_buf, curr_iat))
-                curr_dir = direction
-                curr_buf = length
-                curr_iat = iat
-
-        if curr_buf > 0:
-            coalesced_pkts.append((curr_dir, curr_buf, curr_iat))
-
-        # Add dummy cover traffic in handshake
-        shaped_pkts = []
-        if coalesced_pkts:
-            shaped_pkts.append((1, np.random.randint(450, 750), 0.0))
-            shaped_pkts.append((-1, np.random.randint(600, 1100), np.random.uniform(0.01, 0.03)))
-
-        for direction, length, iat in coalesced_pkts:
-            if np.random.random() < 0.6:
-                pad = np.random.randint(16, 128)
-                length = min(1448, length + pad)
-            shaped_pkts.append((direction, length, iat + np.random.uniform(0.005, 0.04)))
-
-        for p_idx, (direction, length, iat) in enumerate(shaped_pkts[:X_def.shape[1]]):
-            total_def_bytes += length
-            X_def[i, p_idx, 0] = (direction * length) / 1500.0
-            X_def[i, p_idx, 1] = min(1.0, iat)
-
-    overhead_pct = ((total_def_bytes - total_orig_bytes) / max(total_orig_bytes, 1.0)) * 100.0
-    return X_def, max(0.0, overhead_pct)
+    No MTU clamp: a record may legitimately grow past 1500 B, and clamping it was v2.0's bug.
+    The ceiling is the TLS record limit, which is what the protocol actually enforces.
+    """
+    out: List[Record] = []
+    added = 0
+    for (t, d, l) in records:
+        if d == 1:
+            pad = int(rng.randint(lo, hi + 1))
+            new = min(MAX_TLS_RECORD, l + pad)
+            added += new - l
+            out.append((t, d, new))
+        else:
+            out.append((t, d, l))
+    return out, added, 0.0
 
 
-def recompute_tabular_features(X_seq_def):
-    """Recomputes the 48 statistical flow features from defense-modified packet sequences."""
-    X_tab_def = []
-    for i in range(len(X_seq_def)):
-        pkts = []
-        curr_t = 0.0
-        for s in range(X_seq_def.shape[1]):
-            norm_len = X_seq_def[i, s, 0]
-            norm_iat = X_seq_def[i, s, 1]
-            delta_t = float(np.expm1(float(norm_iat) * 10.0))
-            curr_t += max(0.0, delta_t)
-            signed_len = int(round(norm_len * 1500.0))
-            pkts.append((curr_t, signed_len))
+def defend_coalesce(records: Sequence[Record], rng: np.random.RandomState,
+                    mtu: int = 1448, control_rate: float = 0.25
+                    ) -> Tuple[List[Record], int, float]:
+    """Mode 2 -- coalesce cells into MTU-sized records AND inject HTTP/2-style control chatter.
 
-        if len(pkts) < 3:
-            pkts = [(0.0, 500), (0.05, -500), (0.1, 500)]
-        X_tab_def.append(compute_flow_statistics(pkts))
-    return np.array(X_tab_def, dtype=np.float32)
+    The audit's own recommendation: padding fails because 1-128 B moves 558 B to 559-686 B,
+    which never enters the legitimate upstream support. A defence has to move the distribution
+    INTO that support, which means (a) coalescing so large records stop being lattice multiples
+    and (b) manufacturing the small-record mass every legitimate class has.
+
+    Returns the added latency too: a coalesced record cannot be sent until its last constituent
+    is ready, and that buffering delay is the real cost on an interactive Tor circuit -- a cost
+    v2.0 never measured.
+    """
+    out: List[Record] = []
+    delta_bytes = 0
+    latency_sum = 0.0
+    buf_len, buf_dir, buf_t0 = 0, None, 0.0
+    orig_total = sum(l for (_t, _d, l) in records)
+
+    def flush(t_now: float):
+        nonlocal buf_len, buf_dir, buf_t0, latency_sum
+        if buf_dir is None or buf_len <= 0:
+            return
+        out.append((t_now, buf_dir, min(MAX_TLS_RECORD, buf_len)))
+        latency_sum += max(0.0, t_now - buf_t0)
+        buf_len, buf_dir = 0, None
+
+    for (t, d, l) in records:
+        if buf_dir is None:
+            buf_dir, buf_len, buf_t0 = d, l, t
+        elif d == buf_dir and buf_len + l <= mtu:
+            buf_len += l
+        else:
+            flush(t)
+            buf_dir, buf_len, buf_t0 = d, l, t
+        # Cover chatter interleaved at the rate the legitimate classes show.
+        if rng.random_sample() < control_rate:
+            size = int(CONTROL_RECORD_SIZES[rng.randint(len(CONTROL_RECORD_SIZES))])
+            out.append((t, 1 if rng.random_sample() < 0.5 else -1, size))
+            delta_bytes += size
+    if records:
+        flush(records[-1][0])
+
+    out.sort(key=lambda r: r[0])
+    delta_bytes += sum(l for (_t, _d, l) in out) - orig_total - delta_bytes
+    mean_latency = latency_sum / max(1, sum(1 for r in out if r[2] > mtu * 0.5))
+    return out, delta_bytes, mean_latency
+
+
+DEFENCES = {
+    "mode1_padding": defend_pad,
+    "mode2_coalesce_chatter": defend_coalesce,
+}
+
+
+# ---------------------------------------------------------------------------
+
+def load_flows(path: str) -> List[dict]:
+    return [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+
+
+def features_of(records: Sequence[Record]) -> List[float]:
+    """ONE feature pipeline for every arm. This is the whole point."""
+    pkts = [(t, d * l) for (t, d, l) in records]
+    if len(pkts) < 3:
+        pkts = pkts + [(0.0, 558)] * (3 - len(pkts))
+    return compute_flow_statistics(pkts)
+
+
+def build_matrix(flows: List[dict], defence: Optional[str], seed: int
+                 ) -> Tuple[np.ndarray, np.ndarray, Dict[str, float]]:
+    rng = np.random.RandomState(seed)
+    X, y = [], []
+    added_bytes = orig_bytes = 0
+    latencies: List[float] = []
+    lattice_before, lattice_after = [], []
+
+    for f in flows:
+        recs: List[Record] = [tuple(r) for r in f["records"]]  # type: ignore[misc]
+        pos = f["label"] == "webtunnel"
+        up = [l for (_t, d, l) in recs if d == 1]
+        lattice_before.append(np.mean([on_tor_lattice(l) for l in up]) if up else 0.0)
+        if defence and pos:                       # only the circumvention tool defends itself
+            orig_bytes += sum(l for (_t, _d, l) in recs)
+            recs, extra, lat = DEFENCES[defence](recs, rng)
+            added_bytes += extra
+            latencies.append(lat)
+        up2 = [l for (_t, d, l) in recs if d == 1]
+        lattice_after.append(np.mean([on_tor_lattice(l) for l in up2]) if up2 else 0.0)
+        X.append(features_of(recs))
+        y.append(1 if pos else 0)
+
+    stats = {
+        "byte_overhead_pct": (100.0 * added_bytes / orig_bytes) if orig_bytes else 0.0,
+        "added_latency_mean_s": float(np.mean(latencies)) if latencies else 0.0,
+        "added_latency_p95_s": float(np.percentile(latencies, 95)) if latencies else 0.0,
+        "lattice_frac_before": float(np.mean([v for v, f in zip(lattice_before, flows)
+                                              if f["label"] == "webtunnel"])),
+        "lattice_frac_after": float(np.mean([v for v, f in zip(lattice_after, flows)
+                                             if f["label"] == "webtunnel"])),
+    }
+    return np.asarray(X, dtype=np.float32), np.asarray(y, dtype=np.int64), stats
+
+
+def fit(X, y, seed=RANDOM_SEED):
+    if HAVE_XGB:
+        m = xgb.XGBClassifier(n_estimators=300, max_depth=6, learning_rate=0.08,
+                              subsample=0.9, colsample_bytree=0.9, eval_metric="logloss",
+                              random_state=seed, n_jobs=-1)
+    else:
+        m = HistGradientBoostingClassifier(max_iter=300, max_depth=6, learning_rate=0.08,
+                                           random_state=seed)
+    return m.fit(X, y)
+
+
+def score(model, X, y, adversary: str, defence: str, extra: Dict[str, float]) -> Dict[str, object]:
+    p = model.predict_proba(X)[:, 1]
+    pred = (p >= 0.5).astype(int)
+    return {
+        "defence": defence,
+        "adversary": adversary,                      # audit principle P5
+        "n_negatives": int((y == 0).sum()),          # audit principle P5
+        "n_positives": int(y.sum()),
+        "fpr_resolution_floor": 1.0 / max(1, int((y == 0).sum())),
+        "accuracy": float(accuracy_score(y, pred)),
+        "precision": float(precision_score(y, pred, zero_division=0)),
+        "recall": float(recall_score(y, pred, zero_division=0)),
+        "roc_auc": float(roc_auc_score(y, p)) if len(set(y)) > 1 else float("nan"),
+        # average_precision_score, never trapezoidal auc(recall, precision) -- F-16
+        "average_precision": float(average_precision_score(y, p)) if len(set(y)) > 1 else float("nan"),
+        "estimator": "XGBoost" if HAVE_XGB else "HistGradientBoosting",
+        **extra,
+    }
 
 
 def main():
-    set_global_seed(RANDOM_SEED)
-    setup_matplotlib_style()
-    device = get_device()
+    ap = argparse.ArgumentParser(description="record-level defences, static + adaptive adversary")
+    ap.add_argument("--flows", default="data/processed/flow_records.jsonl")
+    ap.add_argument("--dataset", default="data/processed/tabular_dataset.npz")
+    ap.add_argument("--json", default="4_evaluation/defense_results.json")
+    ap.add_argument("--seed", type=int, default=RANDOM_SEED)
+    a = ap.parse_args()
 
-    tab_data = load_tabular_data(TABULAR_DATASET_PATH)
-    seq_data = load_sequence_data(SEQUENCE_DATASET_PATH)
+    flows = load_flows(a.flows)
+    d = np.load(a.dataset, allow_pickle=True)
+    train_ids = set(str(c) for c in d["capture_ids_train"]) | set(str(c) for c in d["capture_ids_val"])
+    test_ids = set(str(c) for c in d["capture_ids_test"])
+    tr_flows = [f for f in flows if f["capture_id"] in train_ids]
+    te_flows = [f for f in flows if f["capture_id"] in test_ids]
 
-    X_tab_test, y_test = tab_data["X_test"], tab_data["y_test"]
-    X_seq_test = seq_data["X_test"]
+    print("=" * 84)
+    print("  Protocol-level countermeasures -- record level, static AND adaptive adversary")
+    print(f"  train {len(tr_flows)} flows   test {len(te_flows)} flows   "
+          f"estimator {'XGBoost' if HAVE_XGB else 'HistGradientBoosting'}")
+    print("=" * 84)
 
-    # Load trained models
-    clf_xgb = xgb.XGBClassifier()
-    clf_xgb.load_model(XGBOOST_MODEL_JSON)
+    Xtr_clean, ytr, _ = build_matrix(tr_flows, None, a.seed)
+    Xte_clean, yte, _ = build_matrix(te_flows, None, a.seed)
+    static_model = fit(Xtr_clean, ytr, a.seed)
 
-    model_cnn = WebTunnel1DCNN(in_channels=2, num_classes=1).to(device)
-    model_cnn.load_state_dict(torch.load(CNN_MODEL_PATH, map_location=device))
-    model_cnn.eval()
+    rows: List[Dict[str, object]] = [
+        score(static_model, Xte_clean, yte, "static", "none",
+              {"byte_overhead_pct": 0.0, "added_latency_mean_s": 0.0, "added_latency_p95_s": 0.0})
+    ]
 
-    model_tf = WebTunnelTransformer(in_features=2, d_model=64, nhead=4, num_layers=2).to(device)
-    model_tf.load_state_dict(torch.load(TRANSFORMER_MODEL_PATH, map_location=device))
-    model_tf.eval()
+    for name in DEFENCES:
+        Xte_def, yte_def, st = build_matrix(te_flows, name, a.seed)
+        rows.append(score(static_model, Xte_def, yte_def, "static", name, st))
 
-    # 1. Evaluate Original (Before Defense)
-    print("=== 1. Evaluating BEFORE Defense (Original WebTunnel) ===")
-    probs_xgb_orig = clf_xgb.predict_proba(X_tab_test)[:, 1]
-    m_xgb_orig = compute_metrics(y_test, probs_xgb_orig, threshold=0.5)
+        # ADAPTIVE: the censor sees the defence and retrains on it. This arm did not exist.
+        Xtr_def, ytr_def, _ = build_matrix(tr_flows, name, a.seed)
+        adaptive_model = fit(Xtr_def, ytr_def, a.seed)
+        rows.append(score(adaptive_model, Xte_def, yte_def, "adaptive", name, st))
 
-    with torch.no_grad():
-        tensor_cnn = torch.tensor(X_seq_test, dtype=torch.float32).permute(0, 2, 1).to(device)
-        probs_cnn_orig = model_cnn(tensor_cnn).squeeze(-1).cpu().numpy()
-    m_cnn_orig = compute_metrics(y_test, probs_cnn_orig, threshold=0.5)
+    hdr = (f"  {'defence':<24}{'adversary':<11}{'acc':>8}{'recall':>9}{'ROC-AUC':>9}"
+           f"{'AP':>8}{'bytes%':>9}{'lat_ms':>9}{'lattice':>9}")
+    print("\n" + hdr)
+    print("  " + "-" * (len(hdr) - 2))
+    for r in rows:
+        print(f"  {r['defence']:<24}{r['adversary']:<11}{r['accuracy']:8.4f}{r['recall']:9.4f}"
+              f"{r['roc_auc']:9.4f}{r['average_precision']:8.4f}"
+              f"{r.get('byte_overhead_pct', 0.0):9.2f}"
+              f"{1000*float(r.get('added_latency_mean_s', 0.0)):9.1f}"
+              f"{r.get('lattice_frac_after', 0.0):9.4f}")
 
-    with torch.no_grad():
-        tensor_tf = torch.tensor(X_seq_test, dtype=torch.float32).to(device)
-        probs_tf_orig = model_tf(tensor_tf).squeeze(-1).cpu().numpy()
-    m_tf_orig = compute_metrics(y_test, probs_tf_orig, threshold=0.5)
+    print(f"\n  n_negatives in the test split = {rows[0]['n_negatives']}  "
+          f"(FPR resolution floor {rows[0]['fpr_resolution_floor']:.2e})")
+    print("  Read the ADAPTIVE rows, not the static ones: a defence that only works against a "
+          "frozen model is not a defence.")
 
-    # 2. Mode 1: Lightweight Adaptive Padding
-    print("=== 2. Evaluating Mode 1: Lightweight Adaptive Padding (1-128B) ===")
-    X_seq_m1, overhead_m1 = simulate_lightweight_padding(X_seq_test, y_test)
-    X_tab_m1 = recompute_tabular_features(X_seq_m1)
+    os.makedirs(os.path.dirname(a.json), exist_ok=True)
+    with open(a.json, "w", encoding="utf-8") as f:
+        json.dump({"results": rows}, f, indent=2)
+    print(f"  wrote {a.json}")
 
-    probs_xgb_m1 = clf_xgb.predict_proba(X_tab_m1)[:, 1]
-    m_xgb_m1 = compute_metrics(y_test, probs_xgb_m1, threshold=0.5)
-
-    with torch.no_grad():
-        tensor_cnn_m1 = torch.tensor(X_seq_m1, dtype=torch.float32).permute(0, 2, 1).to(device)
-        probs_cnn_m1 = model_cnn(tensor_cnn_m1).squeeze(-1).cpu().numpy()
-    m_cnn_m1 = compute_metrics(y_test, probs_cnn_m1, threshold=0.5)
-
-    with torch.no_grad():
-        tensor_tf_m1 = torch.tensor(X_seq_m1, dtype=torch.float32).to(device)
-        probs_tf_m1 = model_tf(tensor_tf_m1).squeeze(-1).cpu().numpy()
-    m_tf_m1 = compute_metrics(y_test, probs_tf_m1, threshold=0.5)
-
-    # 3. Mode 2: Full Cell Coalescing & Cover Traffic Shaping
-    print("=== 3. Evaluating Mode 2: Full Cell Coalescing & Cover Traffic Shaping ===")
-    X_seq_m2, overhead_m2 = simulate_full_cell_coalescing_and_morphing(X_seq_test, y_test)
-    X_tab_m2 = recompute_tabular_features(X_seq_m2)
-
-    probs_xgb_m2 = clf_xgb.predict_proba(X_tab_m2)[:, 1]
-    m_xgb_m2 = compute_metrics(y_test, probs_xgb_m2, threshold=0.5)
-
-    with torch.no_grad():
-        tensor_cnn_m2 = torch.tensor(X_seq_m2, dtype=torch.float32).permute(0, 2, 1).to(device)
-        probs_cnn_m2 = model_cnn(tensor_cnn_m2).squeeze(-1).cpu().numpy()
-    m_cnn_m2 = compute_metrics(y_test, probs_cnn_m2, threshold=0.5)
-
-    with torch.no_grad():
-        tensor_tf_m2 = torch.tensor(X_seq_m2, dtype=torch.float32).to(device)
-        probs_tf_m2 = model_tf(tensor_tf_m2).squeeze(-1).cpu().numpy()
-    m_tf_m2 = compute_metrics(y_test, probs_tf_m2, threshold=0.5)
-
-    # Summary Report
-    print("\n" + "="*85)
-    print("       KOMPLEXNÍ SROVNÁNÍ: PŘED OBRANOU vs. LEHKÝ PADDING vs. PLNÝ MORPHING")
-    print("="*85)
-    print(f"{'Model':<18} | {'Stav / Režim obrany':<35} | {'Accuracy':<9} | {'Recall':<9} | {'Overhead':<8}")
-    print("-" * 85)
-    for model_name, orig, m1, m2 in [
-        ("1D-CNN", m_cnn_orig, m_cnn_m1, m_cnn_m2),
-        ("Flow-Transformer", m_tf_orig, m_tf_m1, m_tf_m2),
-        ("XGBoost", m_xgb_orig, m_xgb_m1, m_xgb_m2)
-    ]:
-        print(f"{model_name:<18} | {'1. Bez obrany (Původní WebTunnel)':<35} | {orig['accuracy']*100:>8.1f}% | {orig['recall']*100:>8.1f}% | {'0.0%':>8}")
-        print(f"{'':<18} | {'2. Lehký padding (1-128B)':<35} | {m1['accuracy']*100:>8.1f}% | {m1['recall']*100:>8.1f}% | {overhead_m1:>7.1f}%")
-        print(f"{'':<18} | {'3. Plný Cell Coalescing & Mimicry':<35} | {m2['accuracy']*100:>8.1f}% | {m2['recall']*100:>8.1f}% | {overhead_m2:>7.1f}%")
-        print("-" * 85)
-
-    # Export LaTeX Table
-    tex_path = os.path.join(LATEX_TABLES_DIR, "table_before_after_defense.tex")
-    with open(tex_path, "w", encoding="utf-8") as f:
-        f.write(r"\begin{table}[htbp]" + "\n")
-        f.write(r"\centering" + "\n")
-        f.write(r"\caption{Účinnost navržených protiopatření: Degradace detekčního Recallu a datová režie}" + "\n")
-        f.write(r"\label{tab:before_after_defense}" + "\n")
-        f.write(r"\begin{tabular}{llccc}" + "\n")
-        f.write(r"\hline" + "\n")
-        f.write(r"\textbf{Klasifikátor} & \textbf{Režim obrany} & \textbf{Accuracy} & \textbf{Recall (Úspěšnost cenzora)} & \textbf{Datová režie} \\" + "\n")
-        f.write(r"\hline" + "\n")
-        f.write(f"1D-CNN & 1. Bez obrany (WebTunnel baseline) & {m_cnn_orig['accuracy']*100:.1f}\\% & {m_cnn_orig['recall']*100:.1f}\\% & 0.0\\% \\\\\n")
-        f.write(f" & 2. Adaptivní Intra-frame Padding (1--128B) & {m_cnn_m1['accuracy']*100:.1f}\\% & {m_cnn_m1['recall']*100:.1f}\\% & {overhead_m1:.1f}\\% \\\\\n")
-        f.write(f" & 3. Cell Coalescing \\& Cover Shaping & {m_cnn_m2['accuracy']*100:.1f}\\% & {m_cnn_m2['recall']*100:.1f}\\% & {overhead_m2:.1f}\\% \\\\\n")
-        f.write(r"\hline" + "\n")
-        f.write(f"Transformer & 1. Bez obrany (WebTunnel baseline) & {m_tf_orig['accuracy']*100:.1f}\\% & {m_tf_orig['recall']*100:.1f}\\% & 0.0\\% \\\\\n")
-        f.write(f" & 2. Adaptivní Intra-frame Padding (1--128B) & {m_tf_m1['accuracy']*100:.1f}\\% & {m_tf_m1['recall']*100:.1f}\\% & {overhead_m1:.1f}\\% \\\\\n")
-        f.write(f" & 3. Cell Coalescing \\& Cover Shaping & {m_tf_m2['accuracy']*100:.1f}\\% & {m_tf_m2['recall']*100:.1f}\\% & {overhead_m2:.1f}\\% \\\\\n")
-        f.write(r"\hline" + "\n")
-        f.write(f"XGBoost & 1. Bez obrany (WebTunnel baseline) & {m_xgb_orig['accuracy']*100:.1f}\\% & {m_xgb_orig['recall']*100:.1f}\\% & 0.0\\% \\\\\n")
-        f.write(f" & 2. Adaptivní Intra-frame Padding (1--128B) & {m_xgb_m1['accuracy']*100:.1f}\\% & {m_xgb_m1['recall']*100:.1f}\\% & {overhead_m1:.1f}\\% \\\\\n")
-        f.write(f" & 3. Cell Coalescing \\& Cover Shaping & {m_xgb_m2['accuracy']*100:.1f}\\% & {m_xgb_m2['recall']*100:.1f}\\% & {overhead_m2:.1f}\\% \\\\\n")
-        f.write(r"\hline" + "\n")
-        f.write(r"\end{tabular}" + "\n")
-        f.write(r"\end{table}" + "\n")
-    print(f"\n[OK] Exported {tex_path}")
-
-    # Plot 1: Metrics comparison bar chart
-    fig, ax = plt.subplots(figsize=(10, 5))
-    labels = ["1D-CNN", "Flow-Transformer", "XGBoost"]
-    orig_rec = [m_cnn_orig['recall']*100, m_tf_orig['recall']*100, m_xgb_orig['recall']*100]
-    m1_rec = [m_cnn_m1['recall']*100, m_tf_m1['recall']*100, m_xgb_m1['recall']*100]
-    m2_rec = [m_cnn_m2['recall']*100, m_tf_m2['recall']*100, m_xgb_m2['recall']*100]
-
-    x = np.arange(len(labels))
-    w = 0.25
-    ax.bar(x - w, orig_rec, w, label="Před obranou (Původní WebTunnel)", color="#d62728", alpha=0.85)
-    ax.bar(x, m1_rec, w, label=f"Mód 1: Adaptivní Padding (+{overhead_m1:.1f}% režie)", color="#ff7f0e", alpha=0.85)
-    ax.bar(x + w, m2_rec, w, label=f"Mód 2: Cell Coalescing (+{overhead_m2:.1f}% režie)", color="#2ca02c", alpha=0.85)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels)
-    ax.set_ylabel("Detekční Recall cenzora (%)")
-    ax.set_title("Vliv protokolárních obran na úspěšnost detekce WebTunnelu")
-    ax.set_ylim(0, 115)
-    ax.legend(loc="upper right")
-    plt.tight_layout()
-    plt.savefig(os.path.join(PLOTS_DIR, "before_vs_after_metrics.png"))
-    plt.close()
-    print(f"[OK] Saved {os.path.join(PLOTS_DIR, 'before_vs_after_metrics.png')}")
-
-    # Plot 2: Spectral distribution shift
-    plt.figure(figsize=(11, 5))
-    wt_indices = np.where(y_test == 1)[0]
-    lens_orig = (np.abs(X_seq_test[wt_indices, :, 0]) * 1500.0).flatten()
-    lens_m1 = (np.abs(X_seq_m1[wt_indices, :, 0]) * 1500.0).flatten()
-    lens_m2 = (np.abs(X_seq_m2[wt_indices, :, 0]) * 1500.0).flatten()
-
-    lens_orig = lens_orig[lens_orig > 10]
-    lens_m1 = lens_m1[lens_m1 > 10]
-    lens_m2 = lens_m2[lens_m2 > 10]
-
-    sns.kdeplot(lens_orig, label="Původní WebTunnel (Kvantizace 558 B)", color="red", lw=2)
-    sns.kdeplot(lens_m1, label="Mód 1: Adaptivní Padding (1-128 B)", color="orange", lw=2)
-    sns.kdeplot(lens_m2, label="Mód 2: Cell Coalescing do MTU 1448 B", color="green", lw=2)
-
-    plt.axvline(x=558, color="darkred", linestyle="--", alpha=0.6, label="558 B Tor Cell")
-    plt.axvline(x=1448, color="darkgreen", linestyle=":", alpha=0.6, label="1448 B MTU Frame")
-    plt.xlim(0, 1600)
-    plt.xlabel("L7 Velikost paketu (Bytes)")
-    plt.ylabel("Hustota pravděpodobnosti")
-    plt.title("Změna distribuce délek paketů vlivem Cell Coalescingu a Paddingu")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join(PLOTS_DIR, "before_vs_after_distributions.png"))
-    plt.close()
-    print(f"[OK] Saved {os.path.join(PLOTS_DIR, 'before_vs_after_distributions.png')}")
+    os.makedirs(LATEX_TABLES_DIR, exist_ok=True)
+    tex = os.path.join(LATEX_TABLES_DIR, "table_before_after_defense.tex")
+    with open(tex, "w", encoding="utf-8") as f:
+        f.write("\\begin{table}[htbp]\n\\centering\n")
+        f.write("\\caption{Ucinnost protiopatreni proti statickemu a adaptivnimu protivnikovi. "
+                "Adaptivni protivnik je cenzor, ktery model pretrenuje na branenem provozu.}\n")
+        f.write("\\label{tab:before_after_defense}\n")
+        f.write("\\begin{tabular}{llcccc}\n\\hline\n")
+        f.write("\\textbf{Obrana} & \\textbf{Protivnik} & \\textbf{Recall} & \\textbf{ROC-AUC} & "
+                "\\textbf{Datova rezie} & \\textbf{Latence (ms)} \\\\\n\\hline\n")
+        for r in rows:
+            f.write(f"{r['defence'].replace('_', ' ')} & {r['adversary']} & "
+                    f"{100*r['recall']:.1f}\\% & {r['roc_auc']:.4f} & "
+                    f"{r.get('byte_overhead_pct', 0.0):.1f}\\% & "
+                    f"{1000*float(r.get('added_latency_mean_s', 0.0)):.1f} \\\\\n")
+        f.write("\\hline\n\\end{tabular}\n\\end{table}\n")
+    print(f"  wrote {tex}")
 
 
 if __name__ == "__main__":

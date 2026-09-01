@@ -1,0 +1,300 @@
+{
+  "G1": {
+    "classes": [
+      "direct_web_browsing",
+      "video_streaming",
+      "web_assets",
+      "websocket_chat",
+      "websocket_ticker",
+      "webtunnel"
+    ],
+    "hellos_per_class": {
+      "direct_web_browsing": 292,
+      "video_streaming": 264,
+      "web_assets": 101,
+      "websocket_chat": 296,
+      "websocket_ticker": 294,
+      "webtunnel": 170
+    },
+    "silent_classes": [],
+    "distinct_ja4": [
+      "t13d1514h1_8daaf6152771_02713d6af862",
+      "t13d1514h2_8daaf6152771_02713d6af862",
+      "t13d190900_9dc949149365_e7c285222651"
+    ],
+    "distinct_alpn": [
+      [
+        "h2",
+        "http/1.1"
+      ],
+      [
+        "http/1.1"
+      ]
+    ],
+    "length_disjoint_classes": [
+      "webtunnel"
+    ],
+    "lengths_by_class": {
+      "direct_web_browsing": [
+        506,
+        538,
+        570,
+        602
+      ],
+      "video_streaming": [
+        506,
+        538,
+        570,
+        602
+      ],
+      "web_assets": [
+        506,
+        538,
+        570,
+        602
+      ],
+      "websocket_chat": [
+        503,
+        535,
+        567,
+        599
+      ],
+      "websocket_ticker": [
+        503,
+        535,
+        567,
+        599
+      ],
+      "webtunnel": [
+        267
+      ]
+    },
+    "passed": false
+  },
+  "G2": {
+    "limit": 0.9,
+    "top": [
+      {
+        "feature": "up_len_max",
+        "accuracy": 1.0,
+        "auc": 1.0,
+        "threshold": 951.0
+      },
+      {
+        "feature": "up_len_std",
+        "accuracy": 1.0,
+        "auc": 1.0,
+        "threshold": 330.1844940185547
+      },
+      {
+        "feature": "up_len_p90",
+        "accuracy": 1.0,
+        "auc": 1.0,
+        "threshold": 814.2999877929688
+      },
+      {
+        "feature": "up_lattice_frac",
+        "accuracy": 1.0,
+        "auc": 1.0,
+        "threshold": 0.15111111104488373
+      },
+      {
+        "feature": "down_lattice_frac",
+        "accuracy": 1.0,
+        "auc": 1.0,
+        "threshold": 0.096078434959054
+      },
+      {
+        "feature": "total_pkts",
+        "accuracy": 0.991304347826087,
+        "auc": 0.9946236559139785,
+        "threshold": 25.5
+      },
+      {
+        "feature": "total_bytes",
+        "accuracy": 0.9608695652173913,
+        "auc": 0.9758064516129032,
+        "threshold": 13002.5
+      },
+      {
+        "feature": "burst_count",
+        "accuracy": 0.808695652173913,
+        "auc": 0.9408602150537635,
+        "threshold": 16.5
+      },
+      {
+        "feature": "len_max",
+        "accuracy": 0.808695652173913,
+        "auc": 0.8494623655913979,
+        "threshold": 1622.5
+      },
+      {
+        "feature": "len_std",
+        "accuracy": 0.808695652173913,
+        "auc": 0.8494623655913979,
+        "threshold": 415.98109436035156
+      },
+      {
+        "feature": "len_p90",
+        "accuracy": 0.808695652173913,
+        "auc": 0.8494623655913979,
+        "threshold": 1147.2000122070312
+      },
+      {
+        "feature": "down_len_max",
+        "accuracy": 0.808695652173913,
+        "auc": 0.8494623655913979,
+        "threshold": 1879.5
+      },
+      {
+        "feature": "down_len_std",
+        "accuracy": 0.808695652173913,
+        "auc": 0.8494623655913979,
+        "threshold": 594.3251190185547
+      },
+      {
+        "feature": "down_len_p90",
+        "accuracy": 0.808695652173913,
+        "auc": 0.8494623655913979,
+        "threshold": 1382.2999877929688
+      },
+      {
+        "feature": "burst_len_std_bytes",
+        "accuracy": 0.808695652173913,
+        "auc": 0.8467741935483871,
+        "threshold": 650.1534118652344
+      }
+    ],
+    "n_over_limit": 8,
+    "unexplained": [
+      "up_len_max",
+      "up_len_std",
+      "up_len_p90",
+      "total_pkts",
+      "total_bytes",
+      "burst_count"
+    ],
+    "passed": false
+  },
+  "G3": {
+    "label_shuffle": {
+      "mean": 0.5045620761127464,
+      "ci95": [
+        0.4687904437706275,
+        0.5403337084548653
+      ],
+      "n_seeds": 6
+    },
+    "same_generator": {
+      "direct_web_browsing": {
+        "mean": 0.8938220328391123,
+        "ci95": [
+          0.8891665453077678,
+          0.8984775203704568
+        ],
+        "passed": false,
+        "underpowered": false
+      },
+      "video_streaming": {
+        "mean": 0.9108306352690888,
+        "ci95": [
+          0.8938661815551867,
+          0.9277950889829909
+        ],
+        "passed": false,
+        "underpowered": false
+      },
+      "web_assets": {
+        "mean": 0.9950980392156863,
+        "ci95": [
+          0.9854901960784314,
+          1.0047058823529411
+        ],
+        "passed": false,
+        "underpowered": false
+      },
+      "websocket_chat": {
+        "mean": 0.9114256822540185,
+        "ci95": [
+          0.8775631919349312,
+          0.9452881725731059
+        ],
+        "passed": false,
+        "underpowered": false
+      },
+      "websocket_ticker": {
+        "mean": 0.7644241641532664,
+        "ci95": [
+          0.7377503482372755,
+          0.7910979800692574
+        ],
+        "passed": false,
+        "underpowered": false
+      },
+      "webtunnel": {
+        "mean": 0.9135355429645403,
+        "ci95": [
+          0.8313224528912565,
+          0.9957486330378241
+        ],
+        "passed": false,
+        "underpowered": false
+      }
+    },
+    "passed": false,
+    "underpowered": [],
+    "binding_controls": [
+      "label_shuffle",
+      "same_generator"
+    ]
+  },
+  "G4": {
+    "worst_p": 5.745105106604666e-45,
+    "worst_ratio": 53.94100669591318,
+    "alpha": 0.01,
+    "paired": true,
+    "n_comparisons": 15,
+    "passed": false
+  },
+  "G5": {
+    "mode": "v2.1",
+    "conn_disjoint": {
+      "key": "conn_id",
+      "n_clashing_keys": 0,
+      "n_clashes": 0,
+      "examples": [],
+      "passed": true
+    },
+    "socket_disjoint": {
+      "key": "socket_id",
+      "n_clashing_keys": 0,
+      "n_clashes": 0,
+      "examples": [],
+      "passed": true
+    },
+    "alignment": {
+      "passed": true,
+      "n_rows": 1542,
+      "n_mismatched": 0,
+      "fraction_correct": 1.0
+    },
+    "positive_sockets": 173,
+    "effective_positive_sockets": 8.44,
+    "largest_socket_share": 0.3322,
+    "sufficiency_passed": false,
+    "passed": false
+  },
+  "G6": {
+    "n_flows": 1542,
+    "missing_manifest": 0,
+    "non_authoritative": 1542,
+    "tuple_mismatch": 0,
+    "tuple_mismatch_examples": [],
+    "provenance_counts": {
+      "repaired-legacy": 1542
+    },
+    "captures_on_disk": 2016,
+    "unaccounted": 0,
+    "passed": false
+  }
+}

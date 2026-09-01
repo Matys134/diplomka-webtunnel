@@ -1,121 +1,149 @@
-# WebTunnel Traffic Analysis & Resilience Research
-> **Master's Thesis Research Project** | Faculty of Science, University of South Bohemia in České Budějovice  
-> **Author:** Bc. Matěj Kouba
+# WebTunnel detectability — practical part
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-CUDA%20Enabled-ee4c2c.svg)](https://pytorch.org/)
-[![XGBoost](https://img.shields.io/badge/XGBoost-Accelerated-green.svg)](https://xgboost.readthedocs.io/)
-[![Docker](https://img.shields.io/badge/Docker-Compose%20Testbed-2496ed.svg)](https://www.docker.com/)
+Master's thesis, Faculty of Science, University of South Bohemia.
+**Bc. Matěj Kouba** · supervisor Ing. Petr Břehovský.
+
+> *Analýza odolnosti protokolu WebTunnel v prostředí strukturálně podobného legitimního provozu*
 
 ---
 
-## 📌 Abstract & Research Focus
+## Status: v2.1 — testbed remediated, awaiting the pilot re-capture
 
-**WebTunnel** is a modern Pluggable Transport for the Tor network designed to bypass aggressive Deep Packet Inspection (DPI) and state-level firewalls (such as the Great Firewall of China or Russian TSPU). It encapsulates Tor traffic into standardized HTTP/2 and WebSocket streams over TLS 1.3, making it appear as normal HTTPS traffic to an external web server.
+This repository has been through two adversarial audits. **Do not quote any accuracy figure
+from a previous revision of this README** — the v1 headline numbers (99 %, "9,000 PCAPs /
+8,500 verified flows", "native HTTP/2 framing") were invalidated by the first audit, and the
+v2.0 numbers (100 % across three models) were invalidated by the second.
 
-This thesis investigates the **traffic analysis resilience** of WebTunnel against advanced Machine Learning (ML) and Deep Learning (DL) classifiers under realistic network conditions (Broadband, 4G/LTE, and Lossy WAN). We demonstrate the fundamental protocol vulnerabilities (514-byte Tor cell quantization and circuit negotiation burst patterns), evaluate base rate fallacy under ISP-scale deployment, and formulate/benchmark novel protocol-level countermeasures (**Cell Coalescing, Adaptive Padding & Cover Mimicry**).
+| Document | What it is |
+| --- | --- |
+| `docs/01-audit-findings.md` | First audit — 18 findings, F-01 … F-18 |
+| `docs/02-rebuild-plan.md` | The 16-week refactor plan |
+| `docs/03-evidence.md` | Raw measured numbers behind the first audit |
+| `docs/04-v2-audit.md` | **Second audit** — what the v2.0 rebuild did and did not fix, plus the remediation log |
 
----
+The current code is the remediation of the second audit. **No results in this repository are
+admissible yet**, because the corpus on disk was captured by the v2.0 collector. The gates say so:
 
-## 🔬 Experimental Results Summary
+```
+$ python3 checks/run_gates.py --dataset data/processed/tabular_dataset.npz
+  G1  FAIL   webtunnel ClientHello is 267 B / stock-Go JA4, not the uTLS Chrome profile
+  G2  FAIL   up_len_max separates perfectly — the old generator's 830 B payload ceiling
+  G3  FAIL   early and late captures of every class are separable (AUC 0.76–0.99)
+  G4  FAIL   paired session budgets are not honoured
+  G5  FAIL   8.4 effective independent positive sockets; one carries 33 % of positives
+  G6  FAIL   ground truth is reconstructed, not recorded
+```
 
-### 1. Model Comparison (5-Fold Stratified Cross-Validation)
-Evaluated across **9,000 PCAPs (8,500 verified TLS 1.3 network flows)** under native **HTTP/2** framing and strict **L7 anti-leakage sanitization** against 5 *Hard Negative* classes (*Direct Web Browsing*, *WebSocket Tickers*, *Interactive WebSocket Chat*, *DASH Video Streaming*, and *HTTPS Web Assets*):
-
-| Model | Architecture / Hardware | Accuracy ($\mu \pm \sigma$) | PR-AUC ($\mu \pm \sigma$) | ROC-AUC ($\mu \pm \sigma$) | Latency / Flow | Throughput |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **XGBoost (Baseline)** | 48 Tabular Stats (Ryzen 9800X3D) | **$99.0 \pm 0.2\%$** | **$0.999 \pm 0.000$** | **$1.000 \pm 0.000$** | **0.0003 ms** | **2,995,853 flows/s** |
-| **1D-CNN (Deep Packet)** | 1D ConvNet (RTX 5070 Ti CUDA) | **$99.2 \pm 0.2\%$** | **$0.998 \pm 0.001$** | **$1.000 \pm 0.000$** | **0.0026 ms** | **384,428 flows/s** |
-| **Flow-Transformer** | [CLS] Token Attention (CUDA) | **$98.5 \pm 0.7\%$** | **$0.996 \pm 0.002$** | **$0.999 \pm 0.000$** | **0.0122 ms** | **81,726 flows/s** |
-
-### 2. 2-Tier Cascaded Classification Architecture (L1 CPU $\rightarrow$ L2 GPU)
-To achieve line-rate inspection on ISP backbone networks, we design and benchmark a hybrid pipeline:
-* **L1 CPU Filter (XGBoost):** Resolves **97.9%** of traffic with $62.23\,\mu\text{s}$ single-flow latency.
-* **L2 GPU Inspection (1D-CNN):** Inspects only ambiguous flows ($0.05 \le p \le 0.95$, representing **2.1%** of traffic).
-* **Overall Hybrid Performance:** **$64.98\,\mu\text{s}$ single-flow latency**, **2,204,567 flows/second batch throughput** with **99.92% accuracy** and **1.0000 PR-AUC**.
-
-### 3. Pre- vs. Post-Handshake Analysis (Dynamic TLS 1.3 0x17 Cutoff)
-By dynamically stripping all initial TLS handshakes at the first Application Data record (`ContentType == 0x17`), we empirically prove that model detection is **NOT dependent on TLS metadata**, but stems purely from the **Tor cell payload quantization and stream dynamics**:
-* **Full Flow:** XGBoost Acc: **99.21%** (PR-AUC: **0.9995**), 1D-CNN Acc: **97.62%** (PR-AUC: **0.9938**)
-* **Post-Handshake Only:** XGBoost Acc: **98.41%** (PR-AUC: **0.9986**), 1D-CNN Acc: **98.81%** (PR-AUC: **0.9978**)
-
-### 4. Countermeasure Evaluation (Before vs. After Defense)
-We evaluate two tiers of protocol-level defenses against ML/DL surveillance:
-1. **Adaptive Intra-frame Padding (1–128 B):** Bandwidth overhead **4.1%**; reduces XGBoost detection recall to **36.0%**.
-2. **Cell Coalescing & Cover Traffic Shaping:** Bandwidth overhead **4.5%**; physically coalesces consecutive 514 B Tor cells into variable MTU-bounded frames (up to 1448 B) and injects dummy negotiation frames, reducing XGBoost recall to **38.2%** and flattening early burst saliency.
+That output is the harness working. The next step is a re-capture, not a re-analysis.
 
 ---
 
-## 🏗️ Repository Architecture
+## The one result the thesis rests on
 
-```text
-├── common/                        # Central shared configuration & utilities
-│   ├── __init__.py
-│   └── config.py                  # Paths, classes, profiles, seeds, Matplotlib styles
-├── 0_thesis_text/                 # LaTeX tables and upcoming thesis chapters
-│   └── tables/                    # Auto-generated LaTeX tables (\input ready)
-├── 1_testbed/                     # Isolated Dockerized testbed
-│   ├── client/                    # WebTunnel client + traffic generator (6 classes)
-│   ├── tor_bridge/                # Official Tor WebTunnel bridge server
-│   ├── webtunnel_server/          # Nginx TLS 1.3 reverse proxy & decoy site
-│   ├── legitimate_servers/        # TLS 1.3 FastAPI mock server (Hard Negatives)
-│   ├── router/                    # Linux tc-netem network profile emulation
-│   └── capture/                   # Multithreaded PCAP capture orchestrator
-├── 2_data_pipeline/               # Anti-leakage data processing
-│   ├── sanitizer.py               # L2/L3/L4 header stripping & feature extraction
-│   ├── build_dataset.py           # Parallel dataset builder (Train/Val/Test)
-│   └── inspect_dataset.py         # Spectral and IAT distribution analyzer
-├── 3_models/                      # Machine Learning and Deep Learning models
-│   ├── architectures.py           # PyTorch WebTunnel1DCNN & WebTunnelTransformer definitions
-│   ├── utils.py                   # Data loaders, focal loss, metric helpers
-│   ├── train_xgboost.py           # XGBoost classifier + dynamic scale_pos_weight
-│   ├── train_1d_cnn.py            # PyTorch 1D-CNN (CUDA) with Focal Loss
-│   ├── train_transformer.py       # PyTorch Flow-Transformer (CUDA)
-│   ├── cross_validate.py          # 5-Fold Stratified Group CV with Early Stopping
-│   └── explain_models.py          # XAI: SHAP Beeswarm Summary & Gradient Saliency
-├── 4_evaluation/                  # Experimental evaluation & figures
-│   ├── evaluate_cascaded_pipeline.py     # 2-Tier L1 CPU -> L2 GPU cascaded benchmark
-│   ├── evaluate_det_curve.py             # Logarithmic DET curve (Low-FPR regime)
-│   ├── evaluate_confusion_matrix.py      # Multi-class confusion matrix breakdown
-│   ├── evaluate_cross_profile.py         # Cross-profile domain generalization
-│   ├── evaluate_before_after_defenses.py # Multi-level defense benchmark
-│   ├── evaluate_post_handshake.py        # Pre- vs post-handshake evaluation
-│   ├── evaluate_base_rate_fallacy.py     # Base rate fallacy & Bayes aggregation
-│   ├── export_latex_tables.py            # Generates all .tex tables for the thesis
-│   └── plots/                            # High-resolution (300 DPI) publication figures
-├── requirements.txt               # Pinned Python package dependencies
-└── run_full_benchmark.py          # Master orchestrator executing entire pipeline
+WebTunnel's TLS record lengths lie on an exact arithmetic lattice:
+
+```
+L = 44 + 514·k        44 = 5 (TLS record header)
+                         + 22 (WebSocket / HTTPT framing)
+                         + 1  (TLS 1.3 inner content type)
+                         + 16 (AEAD tag)
+                     514 = one Tor cell (tor-spec.txt §3, link protocol v4+)
+
+k = 1     2     3     4     5     6     7
+  558  1072  1586  2100  2614  3128  3642      ← all seven observed on the wire
+```
+
+74.1 % of WebTunnel's upstream records sit on this lattice; every legitimate class is at
+0.0–0.3 %. A detector with **no machine learning at all** —
+
+```python
+def is_webtunnel(upstream_record_lengths, threshold=0.20):
+    on = sum(1 for L in upstream_record_lengths if L >= 558 and (L - 44) % 514 == 0)
+    return on / len(upstream_record_lengths) >= threshold
+```
+
+— is implemented in `3_models/lattice_rule.py` and reported with Clopper–Pearson intervals
+and an explicit FPR resolution floor. It is the reference method the assignment asks for, and
+it is a stronger claim about WebTunnel's detectability than any classifier score.
+
+---
+
+## Repository layout
+
+```
+├── CLAUDE.md                  operating context
+├── docs/                      the two audits, the plan, the evidence
+├── 1_testbed/
+│   ├── docker-compose.yml     4 containers on one bridge network
+│   ├── client/
+│   │   ├── generator/main.go  ONE Go binary for every class: uTLS HelloChrome_Auto,
+│   │   │                      one ALPN list, budget-driven sessions, 3 behaviours
+│   │   ├── stop_tor.sh        full daemon teardown  ← fresh bridge socket per sample
+│   │   ├── start_tor.sh       bootstrap + `ss` snapshot of the REAL bridge 5-tuple
+│   │   ├── offload_off.sh     ethtool + verification (exits non-zero if offload is still on)
+│   │   └── probe_utls_support.sh   does this webtunnel build accept a uTLS argument?
+│   ├── capture/collect_scaled_dataset.py   the collector; writes ground truth
+│   └── router/netem_profiles.sh            netem on ingress (ifb) AND egress, with a rate ceiling
+├── 2_data_pipeline/
+│   ├── sanitizer.py           TCP stream reassembly → TLS records → FlowRecord (no MTU clamp)
+│   ├── build_dataset.py       socket-disjoint splits, per-class attrition accounting
+│   └── repair_legacy_manifests.py   DIAGNOSTIC ONLY, see the file header
+├── common/contracts.py        CaptureManifest / FlowRecord / the lattice / split assertions
+├── checks/                    the six build gates + test_gates.py (self-test, 15/15)
+├── 3_models/                  XGBoost · 1D-CNN · Flow-Transformer · lattice_rule.py
+├── 4_evaluation/              defences (static + adaptive), empirical LLR, DET, cascade, XAI
+└── run_full_benchmark.py      orchestrator — the gate phase is BLOCKING
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quickstart
 
-### 1. Prerequisites
-* Linux OS (Ubuntu / Debian / Arch / Fedora)
-* Python 3.10+ with `virtualenv`
-* Docker and Docker Compose
-* NVIDIA GPU with CUDA support (optional, CPU fallback supported)
-
-### 2. Setup Environment
 ```bash
-# Clone the repository
-git clone git@github.com:Matys134/diplomka-webtunnel.git
-cd diplomka-webtunnel
+python3 -m venv venv && venv/bin/pip install -U pip && venv/bin/pip install -r requirements.txt
 
-# Create virtual environment and install dependencies
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# 0. regenerate the CA and server key (not in the repo)
+cd 1_testbed/webtunnel_server/certs && ./make_certs.sh && cd -
+
+# 1. bring the testbed up
+docker compose -f 1_testbed/docker-compose.yml build client
+docker compose -f 1_testbed/docker-compose.yml up -d
+
+# 2. does this webtunnel build accept a uTLS imitation argument?  (decides G1's fate)
+docker compose -f 1_testbed/docker-compose.yml exec client /usr/local/bin/probe_utls_support.sh
+
+# 3. 2,016-capture pilot — one fresh TCP connection per sample
+venv/bin/python3 1_testbed/capture/collect_scaled_dataset.py --pilot
+
+# 4. build + gates.  A failing gate BLOCKS the build.
+venv/bin/python3 2_data_pipeline/build_dataset.py
+venv/bin/python3 checks/run_gates.py --dataset data/processed/tabular_dataset.npz
+
+# 5. only when all six are green:
+venv/bin/python3 run_full_benchmark.py --skip-capture
 ```
 
-### 3. Run the Full Autonomous Benchmark
+`checks/test_gates.py` proves each gate discriminates in both directions — it passes on clean
+fixtures and fails on a synthetic reproduction of the exact historical defect. Run it any time
+you change a gate:
+
 ```bash
-# Runs full pipeline: Capture -> Sanitize -> Train -> CV -> XAI -> Defenses -> Export
-python3 run_full_benchmark.py --samples-per-profile 100
+venv/bin/python3 checks/test_gates.py     # 15/15
 ```
 
 ---
 
-## 📜 License & Citation
-This project is developed as part of academic research at the Faculty of Science, University of South Bohemia.
+## Hard rules
+
+These exist because each maps to an audit finding. Do not relax one without saying so out loud.
+
+- **A sample is one TCP connection**, opened fresh, with its SYN inside the capture window.
+- **The collector writes ground truth; the parser never infers it.** A capture whose 5-tuple is
+  unknown or ambiguous is dropped with a reason, not guessed at.
+- **`socket_id` is the grouping key** for splits and cross-validation — not `sample_id`, and not
+  `conn_id` alone (which mixes in the SYN timestamp and is therefore unique per capture).
+- **No dataset reaches a model before the gates pass.**
+- **Strong features are justified, not deleted** — with arithmetic, in `checks/expected_invariants.py`.
+- **Every experiment declares `adversary ∈ {static, adaptive}` and `n_negatives`.**
+- **Never plot below 1/n_negatives.** Clopper–Pearson everywhere; label projections as projections.
+- **PR-AUC via `average_precision_score`**, never trapezoidal `auc(recall, precision)`.

@@ -1,0 +1,25 @@
+{
+  "direct_web_browsing": {
+    "legacy_no_socket": 43,
+    "too_few_records": 1
+  },
+  "video_streaming": {
+    "legacy_no_socket": 72
+  },
+  "web_assets": {
+    "legacy_no_socket": 235
+  },
+  "websocket_chat": {
+    "legacy_no_socket": 38,
+    "too_few_records": 1,
+    "no_tls_records": 1
+  },
+  "websocket_ticker": {
+    "legacy_no_socket": 40,
+    "no_tls_records": 2
+  },
+  "webtunnel": {
+    "legacy_no_socket": 38,
+    "too_few_records": 3
+  }
+}
