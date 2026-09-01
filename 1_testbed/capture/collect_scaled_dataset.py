@@ -45,7 +45,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from common.contracts import (          # noqa: E402
-    ALPN_PARITY, BEHAVIOURS, PROFILES, PROVENANCE_AUTHORITATIVE, CaptureManifest,
+    BEHAVIOURS, PROFILES, PROVENANCE_AUTHORITATIVE, CaptureManifest,
 )
 
 COMPOSE_FILE = os.path.join("1_testbed", "docker-compose.yml")
@@ -53,17 +53,26 @@ RAW_PCAP_DIR = os.path.join("data", "raw_pcap")
 MANIFEST_PATH = os.path.join("data", "manifest.jsonl")
 
 BRIDGE_IP, BRIDGE_PORT = "172.20.0.10", 443
-LEGIT_IP, LEGIT_PORT = "172.20.0.20", 8443
+LEGIT_IP = "172.20.0.20"
+# FIX B-4: nginx now terminates TLS for the legitimate classes on two ports with identical TLS
+# parameters and an identical certificate. 8443 advertises {h2, http/1.1}; 8444 advertises only
+# http/1.1, because nginx cannot carry WebSockets over HTTP/2 (no RFC 8441 Extended CONNECT).
+# The CLIENT offers the same ALPN list and the same SNI to both, so the ClientHello stays
+# byte-identical across classes -- only the destination port differs, which is not part of the
+# handshake and is how real deployments separate a WSS endpoint from an HTTP/2 origin.
+LEGIT_PORT_H2, LEGIT_PORT_WS = 8443, 8444
 
 # (class, generator mode, destination id, server ip, server port)
 TRAFFIC_CLASSES: List[Tuple[str, str, str, str, int]] = [
     ("webtunnel",           "webtunnel",           "bridge-01", BRIDGE_IP, BRIDGE_PORT),
-    ("direct_web_browsing", "direct_web_browsing", "vhost-01",  LEGIT_IP,  LEGIT_PORT),
-    ("websocket_ticker",    "websocket_ticker",    "vhost-01",  LEGIT_IP,  LEGIT_PORT),
-    ("websocket_chat",      "websocket_chat",      "vhost-01",  LEGIT_IP,  LEGIT_PORT),
-    ("video_streaming",     "video_streaming",     "vhost-01",  LEGIT_IP,  LEGIT_PORT),
-    ("web_assets",          "web_assets",          "vhost-01",  LEGIT_IP,  LEGIT_PORT),
+    ("direct_web_browsing", "direct_web_browsing", "vhost-01",  LEGIT_IP,  LEGIT_PORT_H2),
+    ("websocket_ticker",    "websocket_ticker",    "vhost-01",  LEGIT_IP,  LEGIT_PORT_WS),
+    ("websocket_chat",      "websocket_chat",      "vhost-01",  LEGIT_IP,  LEGIT_PORT_WS),
+    ("video_streaming",     "video_streaming",     "vhost-01",  LEGIT_IP,  LEGIT_PORT_H2),
+    ("web_assets",          "web_assets",          "vhost-01",  LEGIT_IP,  LEGIT_PORT_H2),
 ]
+
+ONION_HOSTNAME_PATH = "/var/lib/tor/onion_decoy/hostname"
 
 
 def sh(cmd: str, timeout: int = 180) -> subprocess.CompletedProcess:
@@ -94,6 +103,24 @@ def git_commit_and_cleanliness() -> Tuple[str, bool]:
     commit = sh("git rev-parse --short HEAD").stdout.strip() or "unknown"
     dirty = bool(sh("git status --porcelain").stdout.strip())
     return commit, not dirty
+
+
+def discover_onion_target() -> str:
+    """FIX B-3 -- the decoy onion address the WebTunnel class fetches through the tunnel.
+
+    A private address cannot be reached through a public Tor exit (exit policies reject RFC 1918
+    and the exit has no route into the lab network), so the controlled target is a v3 onion
+    service hosted on the bridge and pointing at the SAME nginx front end the negative classes
+    use. Same server, same handlers, same byte budgets -- only the transport differs.
+
+    Returns "" if it is not available; the campaign then refuses to run rather than silently
+    falling back to the public web, which is what produced the defect in the first place.
+    """
+    res = sh(f"docker compose -f {COMPOSE_FILE} exec -T tor-bridge cat {ONION_HOSTNAME_PATH}",
+             timeout=60)
+    host = (res.stdout or "").strip().splitlines()
+    host = host[-1].strip() if host else ""
+    return f"http://{host}" if host.endswith(".onion") else ""
 
 
 def verify_offloads() -> Dict[str, Any]:
@@ -142,6 +169,7 @@ class Collector:
         self.args = args
         self.commit, self.clean = git_commit_and_cleanliness()
         self.offload = verify_offloads()
+        self.onion_target = discover_onion_target()
         self.seen_sockets: Dict[str, str] = {}      # "ip:port" -> capture_id that first used it
         self.drops: Dict[str, Counter] = defaultdict(Counter)
         self.written = 0
@@ -150,11 +178,11 @@ class Collector:
     def _start_tcpdump(self, pcap: str, server_ip: str, server_port: int) -> None:
         bpf = f"tcp and host {server_ip} and port {server_port}"
         dexec(f"tcpdump -i eth0 -s 0 -U -w {pcap} '{bpf}'", detach=True)
-        time.sleep(0.35)
+        time.sleep(0.4)
 
     def _stop_tcpdump(self) -> None:
-        dexec("pkill -f tcpdump")
-        time.sleep(0.25)
+        dexec("pkill -2 -f tcpdump 2>/dev/null || pkill -15 -f tcpdump 2>/dev/null || true")
+        time.sleep(0.4)
 
     # -- one sample -------------------------------------------------------
     def capture(self, cls: str, mode: str, dest_id: str, server_ip: str, server_port: int,
@@ -204,6 +232,9 @@ class Collector:
                    f"--target-bytes-up {budget['bytes_up']} "
                    f"--target-bytes-down {budget['bytes_down']} "
                    f"--seed {seed}")
+            if cls == "webtunnel":
+                # B-3: mandatory, and there is no fallback inside the generator either.
+                cmd += f" --target-url {self.onion_target}"
             gen = last_json(dexec(cmd, timeout=120).stdout)
             if not gen.get("ok"):
                 ok, drop_reason = False, (gen.get("error") or "generator_failed")[:120]
@@ -248,7 +279,11 @@ class Collector:
             target_bytes_up=budget["bytes_up"],
             target_bytes_down=budget["bytes_down"],
             provenance=PROVENANCE_AUTHORITATIVE,
-            alpn_offered=tuple(gen.get("alpn_offered") or ALPN_PARITY),
+            # B-2: record what was actually offered. The WebTunnel path reports null because the
+            # TLS on the wire belongs to the pluggable transport, not to this generator -- so the
+            # manifest records an EMPTY offer rather than substituting the parity constant, which
+            # is how v2.1 ended up claiming ("h2","http/1.1") for flows that never sent it.
+            alpn_offered=tuple(gen.get("alpn_offered") or ()),
             mss=int(self.offload.get("mss", 0)),
             offloads_disabled=bool(self.offload.get("offloads_disabled", False)),
             t_start=t_start,
@@ -304,10 +339,21 @@ class Collector:
         print(f"  v2.1 capture campaign -- epoch {self.args.epoch} -- {total} captures")
         print(f"  commit {self.commit}{'' if self.clean else '  !! WORKING TREE DIRTY'}")
         print(f"  offloads_disabled={self.offload.get('offloads_disabled')}  mss={self.offload.get('mss')}")
+        print(f"  webtunnel target   : {self.onion_target or '(NONE)'}")
+        print(f"  legit TLS ports    : {LEGIT_PORT_H2} (h2) / {LEGIT_PORT_WS} (http/1.1), one nginx, one cert")
         print(f"  budgets are PAIRED per (sample_id, profile); matrix shuffled across class+profile")
         print("=" * 78)
         if not self.clean:
             print("  WARNING: git_commit in the manifests will not describe the code that ran.")
+        if not self.onion_target:
+            print("\n  ABORT: the decoy onion service is not available.")
+            print(f"  Expected {ONION_HOSTNAME_PATH} inside the tor-bridge container.")
+            print("  Bring the testbed up and give the bridge a minute to publish its descriptor:")
+            print(f"      docker compose -f {COMPOSE_FILE} up -d")
+            print(f"      docker compose -f {COMPOSE_FILE} exec tor-bridge cat {ONION_HOSTNAME_PATH}")
+            print("  Refusing to capture: v2.1 silently fell back to the live public web here,")
+            print("  and that confound (B-3) is the reason this campaign is being re-run.")
+            raise SystemExit(2)
 
         t0 = time.time()
         current_profile = None

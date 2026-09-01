@@ -29,7 +29,10 @@ import numpy as np
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.tree import DecisionTreeClassifier
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _p in (_HERE, os.path.dirname(_HERE)):        # checks/ and the project root
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 from expected_invariants import (  # noqa: E402
     EXPECTED_INVARIANTS,
     KNOWN_ARTEFACTS,

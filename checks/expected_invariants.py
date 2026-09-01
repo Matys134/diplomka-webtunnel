@@ -52,7 +52,54 @@ EXPECTED_INVARIANTS = {
         "downstream bursts coalesce more cells per record, so the fraction is lower "
         "(57.5% vs 74.1% measured). Same derivation, same citation."
     ),
+
+    # ------------------------------------------------------------ percentile echoes
+    # docs/05-final-review.md section 6 item 6.
+    #
+    # These are NOT independent signals.  Every one of them is the lattice re-expressed as an
+    # order statistic, and the proof is in their fitted thresholds: the leakage tripwire places
+    # every single one at 555 - 557.5 B, i.e. astride the k=1 rung
+    #
+    #     L(k=1) = 44 + 514*1 = 558 B
+    #
+    # A depth-1 stump on a percentile can only ask "is this percentile above or below 558?", so
+    # once >=50% of a WebTunnel flow's upstream records sit exactly on 558 B (measured: 91.95%),
+    # the median and the lower quartile ARE 558 by construction, while every legitimate class --
+    # whose upstream records are HTTP/2 control frames and JSON payloads, 0.00-0.12% on the
+    # lattice -- sits far below it.  They are registered here rather than deleted because they
+    # are legitimate consequences of the invariant; they are registered SEPARATELY from
+    # up_lattice_frac so the thesis can state plainly that they add no information beyond it.
+    #
+    # If any of these ever fires with a threshold that is NOT within a few bytes of a lattice
+    # rung, that is a different phenomenon and this justification does not cover it.
+    "up_len_p25": (
+        "Percentile echo of the Tor cell lattice. With 91.95% of WebTunnel upstream records at "
+        "exactly 558 B, the 25th percentile of the upstream record length is 558 B for virtually "
+        "every positive flow; the legitimate classes sit at 40-350 B. Measured stump threshold "
+        "557 B -- one byte below the k=1 rung, which is what a split on a point mass looks like. "
+        "Adds no information beyond up_lattice_frac."
+    ),
+    "up_len_p50": (
+        "Percentile echo of the Tor cell lattice: the upstream median. This is the feature the "
+        "v1 audit identified as the original 558 B result (F-09). Measured stump threshold "
+        "555 B. It is the weakest of the echoes (AUC 0.9141) precisely because the hard negatives "
+        "were designed to overlap the cell band -- 39% of them have up_len_p50 in [500, 620] B -- "
+        "so the median alone no longer separates cleanly and the lattice test does. Adds no "
+        "information beyond up_lattice_frac."
+    ),
+    "down_len_p25": (
+        "Percentile echo of the Tor cell lattice, downstream. The bridge relays cells back under "
+        "identical framing, so 70.01% of downstream records are on the lattice and the lower "
+        "quartile lands on the k=1 rung. Measured stump threshold 557.5 B. Adds no information "
+        "beyond down_lattice_frac."
+    ),
+    "len_p25": (
+        "Percentile echo of the Tor cell lattice over both directions combined -- the union of "
+        "the two cases above. Measured stump threshold 557.5 B. Adds no information beyond "
+        "up_lattice_frac and down_lattice_frac."
+    ),
 }
+
 
 #: Features that are KNOWN laboratory artefacts. If any of these fires, the corpus is broken.
 #: They are listed so the gate names the failure precisely instead of just printing a number.

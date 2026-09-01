@@ -9,7 +9,7 @@ pkill -x tor              2>/dev/null || true
 pkill -f webtunnel-client 2>/dev/null || true
 
 for _ in $(seq 1 40); do
-    n=$(ss -Htn state connected "dst ${BRIDGE_IP}" "dport = :${BRIDGE_PORT}" 2>/dev/null | wc -l)
+    n=$(ss -Htn state established "dst ${BRIDGE_IP}" "dport = :${BRIDGE_PORT}" 2>/dev/null | wc -l)
     p=$(pgrep -x tor | wc -l)
     if [ "$n" -eq 0 ] && [ "$p" -eq 0 ]; then
         echo '{"stopped": true}'
@@ -20,5 +20,5 @@ done
 pkill -9 -x tor 2>/dev/null || true
 pkill -9 -f webtunnel-client 2>/dev/null || true
 sleep 0.5
-n=$(ss -Htn state connected "dst ${BRIDGE_IP}" "dport = :${BRIDGE_PORT}" 2>/dev/null | wc -l)
+n=$(ss -Htn state established "dst ${BRIDGE_IP}" "dport = :${BRIDGE_PORT}" 2>/dev/null | wc -l)
 echo "{\"stopped\": $([ "$n" -eq 0 ] && echo true || echo false), \"lingering\": ${n}}"

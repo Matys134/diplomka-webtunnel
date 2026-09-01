@@ -82,7 +82,14 @@ def calibrated_scores(d) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray
                                            random_state=RANDOM_SEED))
     base.fit(d["X_train"], d["y_train"])
     method = "isotonic" if int((d["y_val"] == 1).sum()) >= 30 else "sigmoid"
-    cal = CalibratedClassifierCV(base, method=method, cv="prefit").fit(d["X_val"], d["y_val"])
+    try:
+        from sklearn.frozen import FrozenEstimator
+        cal = CalibratedClassifierCV(FrozenEstimator(base), method=method).fit(d["X_val"], d["y_val"])
+    except Exception:
+        cal = CalibratedClassifierCV(estimator=base, method=method, cv=3).fit(
+            np.vstack([d["X_train"], d["X_val"]]),
+            np.concatenate([d["y_train"], d["y_val"]])
+        )
     p = cal.predict_proba(d["X_test"])[:, 1]
     groups = (d["socket_ids_test"] if "socket_ids_test" in d.files
               else np.arange(len(p)).astype(str))
