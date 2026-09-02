@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+\centering
+\caption{Simulace nasazení cenzora na páteřní síti ($N = 1\,000\,000$ toků): Vliv klamu základní míry (Base-Rate Fallacy) a kolaterální škody při naivním per-flow blokování}
+\label{tab:censor_simulation}
+\begin{tabular}{ccccccc}
+\hline
+\textbf{Poměr $\alpha$} & \textbf{WebTunnel toků} & \textbf{Běžných toků} & \textbf{FPR (naměřeno)} & \textbf{Nevinných obětí (FP)} & \textbf{FDR (\%)} & \textbf{FDR ($10^{-4}$)} \\
+\hline
+$10^{-2}$ & 10000 & 990,000 & 4.29e-03 & 4,249 & 29.82\% & 0.98\% \\
+$10^{-3}$ & 1000 & 999,000 & 4.29e-03 & 4,288 & 81.09\% & 9.09\% \\
+$10^{-4}$ & 100 & 999,900 & 4.29e-03 & 4,291 & 97.72\% & 50.00\% \\
+$10^{-5}$ & 10 & 999,990 & 4.29e-03 & 4,292 & 99.77\% & 90.91\% \\
+$10^{-6}$ & 1 & 999,999 & 4.29e-03 & 4,292 & 99.98\% & 99.01\% \\
+\hline
+\end{tabular}
+\par\vspace{0.15cm}\footnotesize\textit{Poznámka: Simulace na $10^6$ spojeních. Při reálném poměru $\alpha = 10^{-4}$ vede naivní per-flow blokování i při 100\% detekci k 4\,291 zablokovaným nevinným uživatelům (FDR 97,72 \%), což prokazuje neproveditelnost naivní cenzury bez více-tokové agregace.}
+\end{table}
