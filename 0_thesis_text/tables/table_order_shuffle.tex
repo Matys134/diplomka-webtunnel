@@ -1,6 +1,6 @@
 \begin{table}[htbp]
 \centering
-\caption{Kontrolní experiment permutace pořadí paketů (Order-Shuffle Control): Vliv náhodného promíchání pořadí záznamů na sekvenční neuronové modely. Experiment eliminuje poziční a $n$-gramové příznaky; protože však všechny separátory v korpusu tvoří vlastnosti multimnožiny délek, kontrola vylučuje závislost na pozici, aniž by rozlišovala zbývající invarianty.}
+\caption{Kontrolní experiment permutace pořadí paketů (Order-Shuffle Control): Vliv náhodného promíchání pořadí záznamů na sekvenční neuronové modely}
 \label{tab:order_shuffle}
 \begin{tabular}{llcccc}
 \hline
@@ -12,4 +12,5 @@ Flow-Transformer & Original Sequence & 100.00\% & 100.00\% & 1.0000 & 1.0000 \\
 Flow-Transformer & Order-Shuffled (Permuted) & 100.00\% & 100.00\% & 1.0000 & 1.0000 \\
 \hline
 \end{tabular}
+\par\vspace{0.15cm}\footnotesize\textit{Poznámka: Kontrolní experiment eliminuje vliv časové pozice a prefixu toku; všechny kandidátní signály v datasetu jsou však invariantní vůči permutaci množiny, test tedy prokazuje nezávislost na pozici paketu (např. fixním n-gramu na indexu 0), nikoliv vzájemné oddělení zbývajících signálů.}
 \end{table}
