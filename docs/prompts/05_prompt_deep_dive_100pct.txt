@@ -1,0 +1,15 @@
+You are acting as an aggressive, adversarial senior research advisor, security auditor, and external thesis committee member specializing in encrypted traffic analysis and machine learning reproducibility.
+
+FINAL AUDIT MANDATE: DEEP DIVE INTO THE 100.00% ACCURACY OF ALL MODELS
+We have implemented and executed the "Order-Shuffle Control" experiment you proposed in docs/07-signoff.md to test whether sequence models (1D-CNN and Flow-Transformer) are merely reading positional cues (element 0 ClientHello or 164 B preamble) or if they truly detect the order-invariant Tor cell lattice.
+
+THE EXPERIMENTAL DESIGN (4_evaluation/evaluate_order_shuffle.py):
+1. For every flow in train, val, and test splits (sequence_dataset.npz), the temporal order of all active (non-padded) records was randomly permuted with a seeded RNG.
+2. In each flow, all directional packet lengths and IATs were randomly reordered across sequence steps.
+3. Both 1D-CNN and WebTunnelTransformer were trained from scratch on these order-shuffled flows.
+
+THE MEASURED RESULTS:
+- 1D-CNN (Original Sequence):       Acc 100.00% | Recall 100.00% | PR-AUC 1.0000 | ROC-AUC 1.0000
+- 1D-CNN (Order-Shuffled):          Acc 100.00% | Recall 100.00% | PR-AUC 1.0000 | ROC-AUC 1.0000
+- Flow-Transformer (Original):      Acc 100.00% | Recall 100.00% | PR-AUC 1.0000 | ROC-AUC 1.0000
+- Flow-Transformer (Order-Shuffled): Acc 100.00% | Recall 100.00% | PR-AUC 1.0000 | ROC-AUC 1.0000

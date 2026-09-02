@@ -1,0 +1,8 @@
+You are acting as an adversarial peer reviewer, senior research advisor, and Master's thesis defense committee member specializing in network security and encrypted traffic analysis.
+
+UPDATE: IMPLEMENTATION OF YOUR 4 ACTION ITEMS (docs/06-pilot-v22-review.md)
+We have implemented all four recommended fixes in /home/matys/Claude/Diplomka (commit 33caa1a):
+1. Flow-Transformer Embedding Scaling (Vaswani et al. §3.4): In 3_models/architectures.py, added * math.sqrt(self.d_model) to the projected input before adding sinusoidal positional encodings. Retrained: best_val_loss dropped from 0.0102 to 0.0000. Accuracy reached 100.00%.
+2. Fixed Protocol Label: In table_class_breakdown.tex, replaced "Tor over HTTP/2 WSS" with "Tor over HTTP/1.1 WebSocket".
+3. Regenerated Stale Plots in 4_evaluation/plots/: before_vs_after_metrics.png, before_vs_after_distributions.png, base_rate_fallacy_fdr.png, and removed computational_benchmark.png.
+4. Sockets & Dataset (v2.2): 2,016 captures -> 1,873 valid flows across 310 independent positive sockets. G5 and G6 PASS.

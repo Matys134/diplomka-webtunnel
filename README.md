@@ -7,34 +7,27 @@ Master's thesis, Faculty of Science, University of South Bohemia.
 
 ---
 
-## Status: v2.1 — testbed remediated, awaiting the pilot re-capture
+## Status: v2.2 — Pilot Campaign Completed, Audited, and Cleared for Thesis Text
 
-This repository has been through two adversarial audits. **Do not quote any accuracy figure
-from a previous revision of this README** — the v1 headline numbers (99 %, "9,000 PCAPs /
-8,500 verified flows", "native HTTP/2 framing") were invalidated by the first audit, and the
-v2.0 numbers (100 % across three models) were invalidated by the second.
+This repository contains the complete experimental framework, testbed, data pipeline, and evaluation suite for the Master's thesis.
 
-| Document | What it is |
+| Document | Description |
 | --- | --- |
-| `docs/01-audit-findings.md` | First audit — 18 findings, F-01 … F-18 |
-| `docs/02-rebuild-plan.md` | The 16-week refactor plan |
-| `docs/03-evidence.md` | Raw measured numbers behind the first audit |
-| `docs/04-v2-audit.md` | **Second audit** — what the v2.0 rebuild did and did not fix, plus the remediation log |
+| `docs/01-audit-findings.md` | First audit — 18 findings (F-01 … F-18) |
+| `docs/02-rebuild-plan.md` | The 16-week refactor plan and methodology |
+| `docs/03-evidence.md` | Raw forensic measurements from initial audit |
+| `docs/04-v2-audit.md` | Second audit — evaluation of v2.0 rebuild |
+| `docs/05-final-review.md` | Pre-pilot verification of testbed fixes |
+| `docs/06-pilot-v22-review.md` | v2.2 pilot campaign audit (2,016 captures → 1,873 flows, 310 positive sockets) |
+| `docs/07-signoff.md` | Sign-off verification of models, cross-validation, and LaTeX tables |
+| `docs/08-order-shuffle-audit.md` | Order-shuffle control audit and the 4-separator leakage taxonomy (§5.3) |
 
-The current code is the remediation of the second audit. **No results in this repository are
-admissible yet**, because the corpus on disk was captured by the v2.0 collector. The gates say so:
-
-```
-$ python3 checks/run_gates.py --dataset data/processed/tabular_dataset.npz
-  G1  FAIL   webtunnel ClientHello is 267 B / stock-Go JA4, not the uTLS Chrome profile
-  G2  FAIL   up_len_max separates perfectly — the old generator's 830 B payload ceiling
-  G3  FAIL   early and late captures of every class are separable (AUC 0.76–0.99)
-  G4  FAIL   paired session budgets are not honoured
-  G5  FAIL   8.4 effective independent positive sockets; one carries 33 % of positives
-  G6  FAIL   ground truth is reconstructed, not recorded
-```
-
-That output is the harness working. The next step is a re-capture, not a re-analysis.
+**Current State (v2.2 Corpus):**
+- **Provenance & Splits:** 1,873 valid flows across 310 independent positive sockets. G5 PASS, G6 PASS (0 5-tuple mismatches, 100% authoritative accounting, 0 cross-split duplicates).
+- **Core Finding (Tor Cell Lattice):** WebTunnel upstream records sit on $L = 44 + 514k$ in 92.65% of cases vs. ≤0.19% for legitimate traffic. A zero-parameter deterministic rule achieves TPR 1.0000 with 0 FP across 233 test negatives and 1,563 CV negatives.
+- **Leakage Taxonomy (§5.3):** Clear deconstruction into S1 (Tor cell protocol invariant), S2 (ClientHello configuration artifact), S3 (WebSocket Upgrade transport property), and S4 (session volume).
+- **Countermeasures (§5.4):** Evaluated against static and adaptive adversary with measured 120.8 ms buffering latency cost.
+- **Base-Rate Fallacy (§5.5):** Analytically presented with the 4.29×10⁻³ resolution floor.
 
 ---
 

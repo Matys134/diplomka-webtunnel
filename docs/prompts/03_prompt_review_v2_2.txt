@@ -1,0 +1,19 @@
+You are acting as an adversarial peer reviewer, senior research advisor, and Master's thesis defense committee member specializing in network security and encrypted traffic analysis.
+
+CONTEXT: EXECUTION OF V2.2 TESTBED RE-PILOT & COMPLETE EVALUATION
+We have fully executed the v2.2 upstream fixes in /home/matys/Claude/Diplomka:
+1. Nginx TLS Front-End (B-4): Both legitimate servers and the WebTunnel bridge now share common_conf/tls_common.conf, identical Nginx builds, and identical certificates.
+2. Onion Decoy Target (B-3): WebTunnel now fetches from the local server via the v3 onion service on the bridge rather than live public websites.
+3. Reverted ALPN drift (B-2): All 5 negative classes now share the exact same JA4 fingerprint (t13d1514h2_8daaf6152771_02713d6af862) and offered ALPN list ([('h2', 'http/1.1')]).
+4. Lattice Percentiles (G2): Registered percentile derivations at 555-557.5 B.
+
+EXECUTION RESULTS (v2.2 corpus -- 2,016 captures, 1,873 valid flows):
+- Sockets & Provenance: 1,875 distinct sockets, 310 independent positive sockets, G5 PASS, G6 PASS (0 5-tuple mismatches, 100% accounting).
+- Server Stack Parity: In the G2 tripwire scan, down_len_min is COMPLETELY GONE. The Nginx server-side artifact is eliminated.
+- Lattice Rule (3_models/lattice_rule.py): 93.08% of WebTunnel upstream records lie on L = 44 + 514k vs 0.00% to 0.12% for negatives. At thr=0.20: TPR 1.0000, 0 false positives in 233 test negatives (FPR 0.0000, 95% CI upper bound 1.57e-02), ROC-AUC 1.0000.
+- Machine Learning Models:
+  * XGBoost Baseline: 100.0% test accuracy across all classes.
+  * 1D-CNN (Deep Packet): 100.0% test accuracy across all classes.
+  * Flow-Transformer: Shows realistic errors! WebTunnel 93.5% recall, Direct Browsing 87.0% (13.0% FP), Web Assets 89.1% (10.9% FP), Video 97.9%, WS 100%.
+- Post-Handshake Analysis: With TLS handshakes stripped, XGBoost and 1D-CNN both achieve 100.00% accuracy, driven by the Tor cell record lattice.
+- Domain Generalization: Broadband -> 4G/LTE and Lossy WAN achieves 100.0% accuracy across models.
