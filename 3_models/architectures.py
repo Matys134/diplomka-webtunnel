@@ -7,7 +7,6 @@ Provides:
 import math
 import torch
 import torch.nn as nn
-from typing import Tuple
 
 
 class PositionalEncoding(nn.Module):
@@ -91,7 +90,11 @@ class WebTunnelTransformer(nn.Module):
             batch_first=True,
             activation="relu"
         )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=num_layers,
+            enable_nested_tensor=False
+        )
         self.dropout = nn.Dropout(dropout)
         self.fc = nn.Linear(d_model, 1)
         self.sigmoid = nn.Sigmoid()

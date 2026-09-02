@@ -147,6 +147,8 @@ def main():
     timings["det_curve"] = run_step("Logaritmická DET křivka cenzora", f"{VENV_PYTHON} 4_evaluation/evaluate_det_curve.py")
     timings["confusion_breakdown"] = run_step("Dekompozice chybovosti po třídách a konfuzní matice", f"{VENV_PYTHON} 4_evaluation/evaluate_confusion_matrix.py")
     timings["base_rate_fallacy"] = run_step("Base Rate Fallacy a empiricka LLR agregace podle destinace", f"{VENV_PYTHON} 4_evaluation/evaluate_base_rate_fallacy.py")
+    timings["order_shuffle"] = run_step("Kontrolní experiment permutace pořadí (Order-Shuffle Control)", f"{VENV_PYTHON} 4_evaluation/evaluate_order_shuffle.py")
+    timings["censor_simulation"] = run_step("Simulace nasazení cenzora na páteřní síti (1M toků, Base-Rate & obrany)", f"{VENV_PYTHON} 4_evaluation/simulate_censor_deployment.py")
 
     # 7. Export LaTeX tabulek
     timings["latex_tables"] = run_step("Generování synchronizovaných LaTeX tabulek", f"{VENV_PYTHON} 4_evaluation/export_latex_tables.py")

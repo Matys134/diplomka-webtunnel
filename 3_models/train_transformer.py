@@ -114,7 +114,7 @@ def train_transformer(
     print(f"[OK] Training finished in {train_time:.2f}s. Best Val Loss: {best_val_loss:.4f}")
 
     # Load best checkpoint & Evaluate
-    model.load_state_dict(torch.load(TRANSFORMER_MODEL_PATH, map_location=device))
+    model.load_state_dict(torch.load(TRANSFORMER_MODEL_PATH, map_location=device, weights_only=True))
     model.eval()
 
     test_probs = []

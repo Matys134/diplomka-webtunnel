@@ -11,7 +11,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, precision_recall_curve, roc_auc_score, auc
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    roc_auc_score,
+    average_precision_score
+)
 from typing import Tuple, Dict, Any
 
 # Ensure project root is in sys.path
@@ -116,8 +123,7 @@ def compute_metrics(y_true: np.ndarray, y_probs: np.ndarray, threshold: float = 
         roc_auc = 0.0
 
     try:
-        p_curve, r_curve, _ = precision_recall_curve(y_true, y_probs)
-        pr_auc = float(auc(r_curve, p_curve))
+        pr_auc = float(average_precision_score(y_true, y_probs))
     except Exception:
         pr_auc = 0.0
 
