@@ -102,7 +102,7 @@ class WebTunnelTransformer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: [B, L, F]
         B, L, _ = x.shape
-        proj = self.input_proj(x)  # [B, L, d_model]
+        proj = self.input_proj(x) * math.sqrt(self.d_model)  # [B, L, d_model] -- Vaswani et al. §3.4 scaling
 
         # Prepend [CLS] token
         cls_tokens = self.cls_token.expand(B, -1, -1)  # [B, 1, d_model]

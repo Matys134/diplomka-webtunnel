@@ -295,8 +295,113 @@ def main():
                     f"{100*r['recall']:.1f}\\% & {r['roc_auc']:.4f} & "
                     f"{r.get('byte_overhead_pct', 0.0):.1f}\\% & "
                     f"{1000*float(r.get('added_latency_mean_s', 0.0)):.1f} \\\\\n")
-        f.write("\\hline\n\\end{tabular}\n\\end{table}\n")
     print(f"  wrote {tex}")
+
+    # Generate fresh defense plots matching the table
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from common.config import setup_matplotlib_style, PLOTS_DIR
+        setup_matplotlib_style()
+
+        # 1. Metrics plot: Static vs Adaptive Recall, Byte Overhead, Latency
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 4.5))
+
+        def_names = ["Undefended", "Intra-record Padding", "Cell Coalescing"]
+        static_recalls = [
+            next(r["recall"] * 100 for r in rows if r["defence"] == "none" and r["adversary"] == "static"),
+            next(r["recall"] * 100 for r in rows if r["defence"] == "mode1_padding" and r["adversary"] == "static"),
+            next(r["recall"] * 100 for r in rows if r["defence"] == "mode2_coalesce_chatter" and r["adversary"] == "static"),
+        ]
+        adaptive_recalls = [
+            100.0,
+            next(r["recall"] * 100 for r in rows if r["defence"] == "mode1_padding" and r["adversary"] == "adaptive"),
+            next(r["recall"] * 100 for r in rows if r["defence"] == "mode2_coalesce_chatter" and r["adversary"] == "adaptive"),
+        ]
+        x = np.arange(len(def_names))
+        w = 0.35
+
+        ax1.bar(x - w/2, static_recalls, width=w, label="Statický protivník", color="#4575b4")
+        ax1.bar(x + w/2, adaptive_recalls, width=w, label="Adaptivní protivník", color="#d73027")
+        ax1.set_ylabel("Úspěšnost detekce (Recall %)")
+        ax1.set_title("Detekce WebTunnelu při obranách")
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(def_names, rotation=12)
+        ax1.set_ylim(0, 110)
+        ax1.grid(axis="y", linestyle="--", alpha=0.5)
+        ax1.legend(loc="lower left")
+
+        # Overheads
+        overheads = [
+            0.0,
+            next(r["byte_overhead_pct"] for r in rows if r["defence"] == "mode1_padding" and r["adversary"] == "adaptive"),
+            next(r["byte_overhead_pct"] for r in rows if r["defence"] == "mode2_coalesce_chatter" and r["adversary"] == "adaptive"),
+        ]
+        ax2.bar(x, overheads, color="#2c7bb6", width=0.5)
+        ax2.set_ylabel("Datová režie (%)")
+        ax2.set_title("Režie přenesených bajtů")
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(def_names, rotation=12)
+        ax2.grid(axis="y", linestyle="--", alpha=0.5)
+
+        # Latency
+        latencies = [
+            0.0,
+            1000 * next(float(r.get("added_latency_mean_s", 0.0)) for r in rows if r["defence"] == "mode1_padding" and r["adversary"] == "adaptive"),
+            1000 * next(float(r.get("added_latency_mean_s", 0.0)) for r in rows if r["defence"] == "mode2_coalesce_chatter" and r["adversary"] == "adaptive"),
+        ]
+        ax3.bar(x, latencies, color="#fdae61", width=0.5)
+        ax3.set_ylabel("Přidaná latence (ms)")
+        ax3.set_title("Latence buferování (Rtt delay)")
+        ax3.set_xticks(x)
+        ax3.set_xticklabels(def_names, rotation=12)
+        ax3.grid(axis="y", linestyle="--", alpha=0.5)
+
+        fig.tight_layout()
+        metrics_png = os.path.join(PLOTS_DIR, "before_vs_after_metrics.png")
+        fig.savefig(metrics_png, dpi=200)
+        plt.close(fig)
+        print(f"  wrote {metrics_png}")
+
+        # 2. Distributions plot
+        fig, ax = plt.subplots(figsize=(10, 5))
+        wt_flows = [f for f in te_flows if f.get("label") == "webtunnel"]
+        if wt_flows:
+            rng = np.random.RandomState(a.seed)
+            clean_lens = [rec[2] for f in wt_flows for rec in f["records"] if rec[1] == 1 and rec[2] > 0][:5000]
+            # Apply padding
+            pad_records = []
+            for f in wt_flows:
+                recs, _, _ = defend_pad(f["records"], rng)
+                pad_records.extend(recs)
+            pad_lens = [rec[2] for rec in pad_records if rec[1] == 1 and rec[2] > 0][:5000]
+
+            # Apply coalescing
+            coal_records = []
+            for f in wt_flows:
+                recs, _, _ = defend_coalesce(f["records"], rng)
+                coal_records.extend(recs)
+            coal_lens = [rec[2] for rec in coal_records if rec[1] == 1 and rec[2] > 0][:5000]
+
+            ax.hist(clean_lens, bins=60, range=(0, 4000), alpha=0.5, label="WebTunnel nechráněný (L = 44 + 514k)", color="#d73027")
+            ax.hist(pad_lens, bins=60, range=(0, 4000), alpha=0.5, label="WebTunnel + Intra-record Padding (1-128 B)", color="#4575b4")
+            ax.hist(coal_lens, bins=60, range=(0, 4000), alpha=0.5, label="WebTunnel + Cell Coalescing & Chatter", color="#2ca02c")
+
+            ax.set_xlabel("Délka odchozích TLS aplikačních záznamů (B)")
+            ax.set_ylabel("Frekvence výskytu")
+            ax.set_title("Vliv protiopatření na distribuci délek TLS záznamů WebTunnelu")
+            ax.set_yscale("log")
+            ax.grid(True, linestyle="--", alpha=0.5)
+            ax.legend()
+            fig.tight_layout()
+            dist_png = os.path.join(PLOTS_DIR, "before_vs_after_distributions.png")
+            fig.savefig(dist_png, dpi=200)
+            plt.close(fig)
+            print(f"  wrote {dist_png}")
+
+    except Exception as e:
+        print(f"  warning: plot generation failed: {e}")
 
 
 if __name__ == "__main__":

@@ -245,6 +245,24 @@ def main():
             fig.savefig(os.path.join(PLOTS_DIR, "host_based_aggregation.png"), dpi=200)
             plt.close(fig)
             print(f"  wrote {os.path.join(PLOTS_DIR, 'host_based_aggregation.png')}")
+
+            # Base-rate Fallacy FDR plot
+            alphas = [r["alpha"] for r in table]
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.plot(alphas, [r["fdr_at_measured_fpr"] * 100 for r in table], "o-", color="#d9534f", label=f"Naměřené FPR ({floor:.2e})")
+            ax.plot(alphas, [r["fdr_at_1e-4_PROJECTED"] * 100 for r in table], "s--", color="#f0ad4e", label=r"Projekce FPR = $10^{-4}$")
+            ax.plot(alphas, [r["fdr_at_1e-5_PROJECTED"] * 100 for r in table], "^:", color="#5cb85c", label=r"Projekce FPR = $10^{-5}$")
+            ax.set_xscale("log")
+            ax.set_xlabel(r"Apriorní podíl WebTunnel provozu ($\alpha$)")
+            ax.set_ylabel("Míra falešných odhalení (FDR %)")
+            ax.set_title(r"Klam základní míry (Base-Rate Fallacy) pro detektor WebTunnelu")
+            ax.grid(True, which="both", ls="--", alpha=0.5)
+            ax.legend()
+            fig.tight_layout()
+            fdr_png = os.path.join(PLOTS_DIR, "base_rate_fallacy_fdr.png")
+            fig.savefig(fdr_png, dpi=200)
+            plt.close(fig)
+            print(f"  wrote {fdr_png}")
     except Exception as e:
         print(f"  (plot skipped: {e})")
 

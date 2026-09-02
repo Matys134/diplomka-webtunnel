@@ -135,8 +135,8 @@ def generate_confusion_breakdown():
         f.write(r"\textbf{Třída síťového provozu} & \textbf{Typ protokolu} & \textbf{Počet toků} & \textbf{1D-CNN} & \textbf{Transformer} & \textbf{XGBoost} \\" + "\n")
         f.write(r"\hline" + "\n")
         proto_map = {
-            "WebTunnel": "Tor over HTTP/2 WSS",
-            "Direct Browsing": "Čisté HTTPS (TLS 1.3)",
+            "WebTunnel": "Tor over HTTP/1.1 WebSocket",
+            "Direct Browsing": "HTTP/2 Web (TLS 1.3)",
             "WS Ticker": "WSS Live JSON",
             "WS Chat": "WSS Interaktivní",
             "Video Stream": "HTTPS DASH/HLS",
