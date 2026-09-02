@@ -1,0 +1,15 @@
+\begin{table}[htbp]
+\centering
+\caption{Kontrolní experiment permutace pořadí paketů (Order-Shuffle Control): Vliv náhodného promíchání pořadí záznamů na sekvenční neuronové modely}
+\label{tab:order_shuffle}
+\begin{tabular}{llcccc}
+\hline
+\textbf{Model} & \textbf{Režim toku} & \textbf{Přesnost (Acc)} & \textbf{Recall} & \textbf{PR-AUC} & \textbf{ROC-AUC} \\
+\hline
+1D-CNN & Original Sequence & 100.00\% & 100.00\% & 1.0000 & 1.0000 \\
+1D-CNN & Order-Shuffled (Permuted) & 100.00\% & 100.00\% & 1.0000 & 1.0000 \\
+Flow-Transformer & Original Sequence & 100.00\% & 100.00\% & 1.0000 & 1.0000 \\
+Flow-Transformer & Order-Shuffled (Permuted) & 100.00\% & 100.00\% & 1.0000 & 1.0000 \\
+\hline
+\end{tabular}
+\end{table}

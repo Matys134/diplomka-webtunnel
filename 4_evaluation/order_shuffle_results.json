@@ -1,0 +1,48 @@
+{
+  "results": [
+    {
+      "model": "1D-CNN",
+      "condition": "Original Sequence",
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 0.9999999999999999,
+      "threshold": 0.5
+    },
+    {
+      "model": "1D-CNN",
+      "condition": "Order-Shuffled (Permuted)",
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 0.9999999999999999,
+      "threshold": 0.5
+    },
+    {
+      "model": "Flow-Transformer",
+      "condition": "Original Sequence",
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 0.9999999999999999,
+      "threshold": 0.5
+    },
+    {
+      "model": "Flow-Transformer",
+      "condition": "Order-Shuffled (Permuted)",
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 0.9999999999999999,
+      "threshold": 0.5
+    }
+  ]
+}
