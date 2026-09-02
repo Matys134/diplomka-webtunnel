@@ -173,12 +173,15 @@ def main():
         htp = int(((hp == 1) & (hy == 1)).sum()); hfp = int(((hp == 1) & (hy == 0)).sum())
         npos = int((hy == 1).sum()); nneg = int((hy == 0).sum())
         htpr, hfpr = htp / max(1, npos), hfp / max(1, nneg)
-        lo, hi = clopper_pearson(htp, npos)
-        _, fhi_h = clopper_pearson(hfp, nneg)
+        # Use actual independent sample sizes (int(y.sum()) and n_neg) for Clopper-Pearson intervals,
+        # not the resampled pseudo-host count (audit defect 3 / docs/07-signoff.md).
+        n_real_pos = int(y.sum())
+        lo, hi = clopper_pearson(int(round(htpr * n_real_pos)), n_real_pos)
+        _, fhi_h = clopper_pearson(int(round(hfpr * n_neg)), n_neg)
         sweep.append({"M": M, "tau": tau, "host_tpr": htpr, "host_tpr_ci95": [lo, hi],
                       "host_fpr": hfpr, "host_fpr_upper95": fhi_h,
                       "n_hosts_pos": npos, "n_hosts_neg": nneg,
-                      "resolution_floor": 1.0 / max(1, nneg)})
+                      "resolution_floor": floor})
         print(f"  {M:3d}{htpr:11.4f}   [{lo:.4f}, {hi:.4f}]      {hfpr:11.5f}{fhi_h:15.2e}{tau:9.1f}")
 
     # ---- base-rate table, explicitly labelled ---------------------------

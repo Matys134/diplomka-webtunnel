@@ -98,6 +98,15 @@ EXPECTED_INVARIANTS = {
         "the two cases above. Measured stump threshold 557.5 B. Adds no information beyond "
         "up_lattice_frac and down_lattice_frac."
     ),
+    "up_len_p10": (
+        "Percentile echo of the Tor cell lattice: the upstream 10th percentile. With >92% of "
+        "WebTunnel upstream records on the lattice (558 B), even the 10th percentile reflects "
+        "Tor cell quantization. Adds no information beyond up_lattice_frac."
+    ),
+    "len_p10": (
+        "Percentile echo of the Tor cell lattice over both directions combined at the 10th percentile. "
+        "Adds no information beyond up_lattice_frac and down_lattice_frac."
+    ),
 }
 
 

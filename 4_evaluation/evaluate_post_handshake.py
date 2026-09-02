@@ -35,7 +35,7 @@ from common.config import (
 )
 from sanitizer import (extract_raw_packets_from_pcap, compute_flow_statistics,
                        build_sequence_tensor, load_manifest_for)
-from architectures import WebTunnel1DCNN
+from architectures import WebTunnel1DCNN, WebTunnelTransformer
 from utils import FlowSequenceDataset, BinaryFocalLoss, compute_metrics, get_device
 
 
@@ -162,7 +162,52 @@ def train_eval_variant(X_tab, X_seq, y_bin, sample_ids, desc="Full"):
     cnn_probs = np.vstack(cnn_probs).flatten()
     cnn_m = compute_metrics(y_bin[test_idx], cnn_probs, threshold=0.5)
 
-    return {"xgb": xgb_m, "cnn": cnn_m}
+    # 3. Flow-Transformer
+    train_tf_ds = FlowSequenceDataset(X_seq[train_idx], y_bin[train_idx], channel_first=False)
+    val_tf_ds = FlowSequenceDataset(X_seq[val_idx], y_bin[val_idx], channel_first=False)
+    test_tf_ds = FlowSequenceDataset(X_seq[test_idx], y_bin[test_idx], channel_first=False)
+
+    train_tf_loader = DataLoader(train_tf_ds, batch_size=32, shuffle=True)
+    val_tf_loader = DataLoader(val_tf_ds, batch_size=32, shuffle=False)
+    test_tf_loader = DataLoader(test_tf_ds, batch_size=32, shuffle=False)
+
+    tf_model = WebTunnelTransformer(in_features=2, d_model=64, nhead=4, num_layers=2).to(device)
+    tf_optimizer = torch.optim.AdamW(tf_model.parameters(), lr=0.0005, weight_decay=1e-4)
+
+    best_tf_loss = float("inf")
+    best_tf_state = None
+    for epoch in range(1, 30):
+        tf_model.train()
+        for bx, by in train_tf_loader:
+            bx, by = bx.to(device), by.to(device)
+            tf_optimizer.zero_grad()
+            out = tf_model(bx)
+            loss = criterion(out, by)
+            loss.backward()
+            tf_optimizer.step()
+
+        tf_model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for bx, by in val_tf_loader:
+                bx, by = bx.to(device), by.to(device)
+                val_loss += criterion(tf_model(bx), by).item() * len(by)
+        val_loss /= len(val_tf_ds)
+
+        if val_loss < best_tf_loss:
+            best_tf_loss = val_loss
+            best_tf_state = tf_model.state_dict()
+
+    tf_model.load_state_dict(best_tf_state)
+    tf_model.eval()
+    tf_probs = []
+    with torch.no_grad():
+        for bx, _ in test_tf_loader:
+            tf_probs.append(tf_model(bx.to(device)).cpu().numpy())
+    tf_probs = np.vstack(tf_probs).flatten()
+    tf_m = compute_metrics(y_bin[test_idx], tf_probs, threshold=0.5)
+
+    return {"xgb": xgb_m, "cnn": cnn_m, "tf": tf_m}
 
 
 def main():
@@ -180,15 +225,15 @@ def main():
     res_post = train_eval_variant(X_tab_post, X_seq_post, y_post, sids_post, desc="Post-Handshake")
 
     print("\n--- Handshake Comparison Summary ---")
-    print(f"Full Flow       - XGBoost Acc: {res_full['xgb']['accuracy']*100:.2f}%, PR-AUC: {res_full['xgb']['pr_auc']:.4f} | 1D-CNN Acc: {res_full['cnn']['accuracy']*100:.2f}%, PR-AUC: {res_full['cnn']['pr_auc']:.4f}")
-    print(f"Post-Handshake  - XGBoost Acc: {res_post['xgb']['accuracy']*100:.2f}%, PR-AUC: {res_post['xgb']['pr_auc']:.4f} | 1D-CNN Acc: {res_post['cnn']['accuracy']*100:.2f}%, PR-AUC: {res_post['cnn']['pr_auc']:.4f}")
+    print(f"Full Flow       - XGB Acc: {res_full['xgb']['accuracy']*100:.2f}% | CNN Acc: {res_full['cnn']['accuracy']*100:.2f}% | TF Acc: {res_full['tf']['accuracy']*100:.2f}%")
+    print(f"Post-Handshake  - XGB Acc: {res_post['xgb']['accuracy']*100:.2f}% | CNN Acc: {res_post['cnn']['accuracy']*100:.2f}% | TF Acc: {res_post['tf']['accuracy']*100:.2f}%")
 
     # Export LaTeX Table
     tex_path = os.path.join(LATEX_TABLES_DIR, "table_handshake_comparison.tex")
     with open(tex_path, "w", encoding="utf-8") as f:
         f.write(r"\begin{table}[htbp]" + "\n")
         f.write(r"\centering" + "\n")
-        f.write(r"\caption{Srovnání detekční přesnosti před a po dynamickém oříznutí TLS 1.3 handshaku}" + "\n")
+        f.write(r"\caption{Srovnání detekční přesnosti před a po dynamickém oříznutí TLS 1.3 handshaku (Ablace)}" + "\n")
         f.write(r"\label{tab:handshake_comparison}" + "\n")
         f.write(r"\begin{tabular}{lcccc}" + "\n")
         f.write(r"\hline" + "\n")
@@ -196,29 +241,39 @@ def main():
         f.write(r"\hline" + "\n")
         f.write(f"Kompletní tok (včetně TLS) & XGBoost & {res_full['xgb']['accuracy']*100:.2f}\\% & {res_full['xgb']['recall']*100:.2f}\\% & {res_full['xgb']['pr_auc']:.4f} \\\\\n")
         f.write(f"Kompletní tok (včetně TLS) & 1D-CNN  & {res_full['cnn']['accuracy']*100:.2f}\\% & {res_full['cnn']['recall']*100:.2f}\\% & {res_full['cnn']['pr_auc']:.4f} \\\\\n")
+        f.write(f"Kompletní tok (včetně TLS) & Transformer & {res_full['tf']['accuracy']*100:.2f}\\% & {res_full['tf']['recall']*100:.2f}\\% & {res_full['tf']['pr_auc']:.4f} \\\\\n")
         f.write(r"\hline" + "\n")
         f.write(f"Pouze Post-Handshake data & XGBoost & {res_post['xgb']['accuracy']*100:.2f}\\% & {res_post['xgb']['recall']*100:.2f}\\% & {res_post['xgb']['pr_auc']:.4f} \\\\\n")
         f.write(f"Pouze Post-Handshake data & 1D-CNN  & {res_post['cnn']['accuracy']*100:.2f}\\% & {res_post['cnn']['recall']*100:.2f}\\% & {res_post['cnn']['pr_auc']:.4f} \\\\\n")
+        f.write(f"Pouze Post-Handshake data & Transformer & {res_post['tf']['accuracy']*100:.2f}\\% & {res_post['tf']['recall']*100:.2f}\\% & {res_post['tf']['pr_auc']:.4f} \\\\\n")
         f.write(r"\hline" + "\n")
         f.write(r"\end{tabular}" + "\n")
         f.write(r"\end{table}" + "\n")
     print(f"\n[OK] Exported {tex_path}")
 
     # Plot Comparison
-    fig, ax = plt.subplots(figsize=(9, 5))
-    categories = ["XGBoost (Full)", "XGBoost (Post-HS)", "1D-CNN (Full)", "1D-CNN (Post-HS)"]
-    accs = [res_full['xgb']['accuracy']*100, res_post['xgb']['accuracy']*100, res_full['cnn']['accuracy']*100, res_post['cnn']['accuracy']*100]
-    praucs = [res_full['xgb']['pr_auc']*100, res_post['xgb']['pr_auc']*100, res_full['cnn']['pr_auc']*100, res_post['cnn']['pr_auc']*100]
+    fig, ax = plt.subplots(figsize=(10, 5))
+    categories = ["XGB (Full)", "XGB (Post-HS)", "1D-CNN (Full)", "1D-CNN (Post-HS)", "Transf. (Full)", "Transf. (Post-HS)"]
+    accs = [
+        res_full['xgb']['accuracy']*100, res_post['xgb']['accuracy']*100,
+        res_full['cnn']['accuracy']*100, res_post['cnn']['accuracy']*100,
+        res_full['tf']['accuracy']*100, res_post['tf']['accuracy']*100
+    ]
+    praucs = [
+        res_full['xgb']['pr_auc']*100, res_post['xgb']['pr_auc']*100,
+        res_full['cnn']['pr_auc']*100, res_post['cnn']['pr_auc']*100,
+        res_full['tf']['pr_auc']*100, res_post['tf']['pr_auc']*100
+    ]
 
     x = np.arange(len(categories))
     width = 0.35
     ax.bar(x - width/2, accs, width, label="Accuracy (%)", color="#1f77b4", alpha=0.85)
     ax.bar(x + width/2, praucs, width, label="PR-AUC (%)", color="#ff7f0e", alpha=0.85)
     ax.set_xticks(x)
-    ax.set_xticklabels(categories, rotation=10)
+    ax.set_xticklabels(categories, rotation=15)
     ax.set_ylim(80, 102)
     ax.set_ylabel("Skóre (%)")
-    ax.set_title("Vliv přítomnosti TLS Handshaku na klasifikaci (Ablace 0x17 Cutoff)")
+    ax.set_title("Vliv přítomnosti TLS Handshaku na modely (Ablace 0x17 Cutoff)")
     ax.legend(loc="lower right")
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_DIR, "pre_vs_post_handshake_comparison.png"))

@@ -17,168 +17,168 @@
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 2,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 3,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 4,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 5,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 6,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 7,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 8,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 9,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 10,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 11,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     },
     {
       "M": 12,
       "tau": 0.0,
       "host_tpr": 1.0,
       "host_tpr_ci95": [
-        0.998157260206594,
+        0.9229381729480993,
         1.0
       ],
       "host_fpr": 0.0,
-      "host_fpr_upper95": 0.0018427397934059364,
+      "host_fpr_upper95": 0.01570743174646869,
       "n_hosts_pos": 2000,
       "n_hosts_neg": 2000,
-      "resolution_floor": 0.0005
+      "resolution_floor": 0.004291845493562232
     }
   ],
   "base_rate_table": [

@@ -1,6 +1,6 @@
 \begin{table}[htbp]
 \centering
-\caption{Srovnání detekční přesnosti před a po dynamickém oříznutí TLS 1.3 handshaku}
+\caption{Srovnání detekční přesnosti před a po dynamickém oříznutí TLS 1.3 handshaku (Ablace)}
 \label{tab:handshake_comparison}
 \begin{tabular}{lcccc}
 \hline
@@ -8,9 +8,11 @@
 \hline
 Kompletní tok (včetně TLS) & XGBoost & 100.00\% & 100.00\% & 1.0000 \\
 Kompletní tok (včetně TLS) & 1D-CNN  & 100.00\% & 100.00\% & 1.0000 \\
+Kompletní tok (včetně TLS) & Transformer & 100.00\% & 100.00\% & 1.0000 \\
 \hline
 Pouze Post-Handshake data & XGBoost & 100.00\% & 100.00\% & 1.0000 \\
 Pouze Post-Handshake data & 1D-CNN  & 100.00\% & 100.00\% & 1.0000 \\
+Pouze Post-Handshake data & Transformer & 100.00\% & 100.00\% & 1.0000 \\
 \hline
 \end{tabular}
 \end{table}
