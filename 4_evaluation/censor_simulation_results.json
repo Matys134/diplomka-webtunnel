@@ -1,141 +1,160 @@
 {
-  "total_flows": 1000000,
-  "measured_tpr": 1.0,
-  "measured_fpr_floor": 0.004291845493562232,
-  "alpha_sim_rows": [
-    {
-      "alpha": 0.01,
-      "n_webtunnel": 10000,
-      "n_legitimate": 990000,
-      "tp_detected": 10000,
-      "fp_collateral_measured": 4249,
-      "fdr_measured_pct": 29.819636465716894,
-      "fp_collateral_1e4": 99,
-      "fdr_1e4_pct": 0.9802950787206653,
-      "fp_collateral_1e5": 10,
-      "fdr_1e5_pct": 0.0999000999000999
-    },
-    {
-      "alpha": 0.001,
-      "n_webtunnel": 1000,
-      "n_legitimate": 999000,
-      "tp_detected": 1000,
-      "fp_collateral_measured": 4288,
-      "fdr_measured_pct": 81.08925869894101,
-      "fp_collateral_1e4": 100,
-      "fdr_1e4_pct": 9.090909090909092,
-      "fp_collateral_1e5": 10,
-      "fdr_1e5_pct": 0.9900990099009901
-    },
-    {
-      "alpha": 0.0001,
-      "n_webtunnel": 100,
-      "n_legitimate": 999900,
-      "tp_detected": 100,
-      "fp_collateral_measured": 4291,
-      "fdr_measured_pct": 97.72261443862446,
-      "fp_collateral_1e4": 100,
-      "fdr_1e4_pct": 50.0,
-      "fp_collateral_1e5": 10,
-      "fdr_1e5_pct": 9.090909090909092
-    },
-    {
-      "alpha": 1e-05,
-      "n_webtunnel": 10,
-      "n_legitimate": 999990,
-      "tp_detected": 10,
-      "fp_collateral_measured": 4292,
-      "fdr_measured_pct": 99.76754997675499,
-      "fp_collateral_1e4": 100,
-      "fdr_1e4_pct": 90.9090909090909,
-      "fp_collateral_1e5": 10,
-      "fdr_1e5_pct": 50.0
-    },
-    {
-      "alpha": 1e-06,
-      "n_webtunnel": 1,
-      "n_legitimate": 999999,
-      "tp_detected": 1,
-      "fp_collateral_measured": 4292,
-      "fdr_measured_pct": 99.97670626601443,
-      "fp_collateral_1e4": 100,
-      "fdr_1e4_pct": 99.00990099009901,
-      "fp_collateral_1e5": 10,
-      "fdr_1e5_pct": 90.9090909090909
-    }
-  ],
-  "multi_flow_rows": [
-    {
-      "M": 1,
-      "effective_fpr": 0.004291845493562232,
-      "tp_detected": 100,
-      "fp_innocent_blocked": 4292,
-      "fdr_pct": 97.72313296903461
-    },
-    {
-      "M": 2,
-      "effective_fpr": 1.8419937740610438e-05,
-      "tp_detected": 100,
-      "fp_innocent_blocked": 19,
-      "fdr_pct": 15.966386554621847
-    },
-    {
-      "M": 3,
-      "effective_fpr": 7.905552678373578e-08,
-      "tp_detected": 100,
-      "fp_innocent_blocked": 0,
-      "fdr_pct": 0.0
-    },
-    {
-      "M": 4,
-      "effective_fpr": 3.3929410636796473e-10,
-      "tp_detected": 100,
-      "fp_innocent_blocked": 0,
-      "fdr_pct": 0.0
-    },
-    {
-      "M": 5,
-      "effective_fpr": 1.4561978814075739e-12,
-      "tp_detected": 100,
-      "fp_innocent_blocked": 0,
-      "fdr_pct": 0.0
-    }
-  ],
-  "evasion_phases": [
-    {
-      "phase": "1. Laboratorn\u00ed baseline (Nechr\u00e1n\u011bno)",
-      "censor_recall": 100.0,
-      "evasion_rate": 0.0,
-      "latency_ms": 0.0,
-      "overhead_pct": 0.0
-    },
-    {
-      "phase": "2. WebTunnel aktivuje Padding (Statick\u00fd cenzor)",
-      "censor_recall": 0.0,
-      "evasion_rate": 100.0,
-      "latency_ms": 0.0,
-      "overhead_pct": 3.5
-    },
-    {
-      "phase": "3. Cenzor se adaptuje a p\u0159etr\u00e9nuje",
-      "censor_recall": 100.0,
-      "evasion_rate": 0.0,
-      "latency_ms": 0.0,
-      "overhead_pct": 3.5
-    },
-    {
-      "phase": "4. WebTunnel nasazuje Slu\u010dov\u00e1n\u00ed cel (Coalescing)",
-      "censor_recall": 0.0,
-      "evasion_rate": 100.0,
-      "latency_ms": 120.8,
-      "overhead_pct": 1.5
-    },
-    {
-      "phase": "5. Adaptivn\u00ed cenzor fin\u00e1ln\u011b p\u0159etr\u00e9nuje",
-      "censor_recall": 100.0,
-      "evasion_rate": 0.0,
-      "latency_ms": 120.8,
-      "overhead_pct": 1.5
-    }
-  ]
+  "analytical_1M_sweep": {
+    "total_flows": 1000000,
+    "measured_tpr": 1.0,
+    "measured_fpr_floor": 0.004291845493562232,
+    "alpha_sim_rows": [
+      {
+        "alpha": 0.01,
+        "n_webtunnel": 10000,
+        "n_legitimate": 990000,
+        "tp_detected": 10000,
+        "fp_collateral_measured": 4249,
+        "fdr_measured_pct": 29.819636465716894,
+        "fp_collateral_1e4": 99,
+        "fdr_1e4_pct": 0.9802950787206653,
+        "fp_collateral_1e5": 10,
+        "fdr_1e5_pct": 0.0999000999000999
+      },
+      {
+        "alpha": 0.001,
+        "n_webtunnel": 1000,
+        "n_legitimate": 999000,
+        "tp_detected": 1000,
+        "fp_collateral_measured": 4288,
+        "fdr_measured_pct": 81.08925869894101,
+        "fp_collateral_1e4": 100,
+        "fdr_1e4_pct": 9.090909090909092,
+        "fp_collateral_1e5": 10,
+        "fdr_1e5_pct": 0.9900990099009901
+      },
+      {
+        "alpha": 0.0001,
+        "n_webtunnel": 100,
+        "n_legitimate": 999900,
+        "tp_detected": 100,
+        "fp_collateral_measured": 4291,
+        "fdr_measured_pct": 97.72261443862446,
+        "fp_collateral_1e4": 100,
+        "fdr_1e4_pct": 50.0,
+        "fp_collateral_1e5": 10,
+        "fdr_1e5_pct": 9.090909090909092
+      },
+      {
+        "alpha": 1e-05,
+        "n_webtunnel": 10,
+        "n_legitimate": 999990,
+        "tp_detected": 10,
+        "fp_collateral_measured": 4292,
+        "fdr_measured_pct": 99.76754997675499,
+        "fp_collateral_1e4": 100,
+        "fdr_1e4_pct": 90.9090909090909,
+        "fp_collateral_1e5": 10,
+        "fdr_1e5_pct": 50.0
+      },
+      {
+        "alpha": 1e-06,
+        "n_webtunnel": 1,
+        "n_legitimate": 999999,
+        "tp_detected": 1,
+        "fp_collateral_measured": 4292,
+        "fdr_measured_pct": 99.97670626601443,
+        "fp_collateral_1e4": 100,
+        "fdr_1e4_pct": 99.00990099009901,
+        "fp_collateral_1e5": 10,
+        "fdr_1e5_pct": 90.9090909090909
+      }
+    ],
+    "multi_flow_rows": [
+      {
+        "M": 1,
+        "effective_fpr": 0.004291845493562232,
+        "tp_detected": 100,
+        "fp_innocent_blocked": 4292,
+        "fdr_pct": 97.72313296903461
+      },
+      {
+        "M": 2,
+        "effective_fpr": 1.8419937740610438e-05,
+        "tp_detected": 100,
+        "fp_innocent_blocked": 19,
+        "fdr_pct": 15.966386554621847
+      },
+      {
+        "M": 3,
+        "effective_fpr": 7.905552678373578e-08,
+        "tp_detected": 100,
+        "fp_innocent_blocked": 0,
+        "fdr_pct": 0.0
+      },
+      {
+        "M": 4,
+        "effective_fpr": 3.3929410636796473e-10,
+        "tp_detected": 100,
+        "fp_innocent_blocked": 0,
+        "fdr_pct": 0.0
+      },
+      {
+        "M": 5,
+        "effective_fpr": 1.4561978814075739e-12,
+        "tp_detected": 100,
+        "fp_innocent_blocked": 0,
+        "fdr_pct": 0.0
+      }
+    ],
+    "evasion_phases": [
+      {
+        "phase": "1. Laboratorn\u00ed baseline (Nechr\u00e1n\u011bno)",
+        "censor_recall": 100.0,
+        "evasion_rate": 0.0,
+        "latency_ms": 0.0,
+        "overhead_pct": 0.0
+      },
+      {
+        "phase": "2. WebTunnel aktivuje Padding (Statick\u00fd cenzor)",
+        "censor_recall": 0.0,
+        "evasion_rate": 100.0,
+        "latency_ms": 0.0,
+        "overhead_pct": 3.5
+      },
+      {
+        "phase": "3. Cenzor se adaptuje a p\u0159etr\u00e9nuje",
+        "censor_recall": 100.0,
+        "evasion_rate": 0.0,
+        "latency_ms": 0.0,
+        "overhead_pct": 3.5
+      },
+      {
+        "phase": "4. WebTunnel nasazuje Slu\u010dov\u00e1n\u00ed cel (Coalescing)",
+        "censor_recall": 0.0,
+        "evasion_rate": 100.0,
+        "latency_ms": 120.8,
+        "overhead_pct": 1.5
+      },
+      {
+        "phase": "5. Adaptivn\u00ed cenzor fin\u00e1ln\u011b p\u0159etr\u00e9nuje",
+        "censor_recall": 100.0,
+        "evasion_rate": 0.0,
+        "latency_ms": 120.8,
+        "overhead_pct": 1.5
+      }
+    ]
+  },
+  "stateful_streaming_engine": {
+    "streaming_flows": 500278,
+    "webtunnel_flows": 278,
+    "simulated_hours": 24.0,
+    "total_hosts": 10000,
+    "webtunnel_hosts": 10,
+    "active_hosts_tracked": 10000,
+    "state_table_ram_kb": 625.0,
+    "state_table_ram_mb": 0.61,
+    "naive_innocent_flows_blocked": 516,
+    "stateful_innocent_hosts_blocked": 0,
+    "webtunnel_hosts_blocked": 10,
+    "webtunnel_block_rate_pct": 100.0,
+    "mean_mttd_minutes": 341.6,
+    "mean_mttd_flows": 3.0,
+    "simulation_runtime_sec": 0.44
+  }
 }
