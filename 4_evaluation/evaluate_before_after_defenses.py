@@ -295,6 +295,7 @@ def main():
                     f"{100*r['recall']:.1f}\\% & {r['roc_auc']:.4f} & "
                     f"{r.get('byte_overhead_pct', 0.0):.1f}\\% & "
                     f"{1000*float(r.get('added_latency_mean_s', 0.0)):.1f} \\\\\n")
+        f.write("\\hline\n\\end{tabular}\n\\end{table}\n")
     print(f"  wrote {tex}")
 
     # Generate fresh defense plots matching the table

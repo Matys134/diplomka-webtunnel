@@ -4,24 +4,24 @@
     "rule": "(L - 44) mod 514 == 0 and L >= 558",
     "threshold": 0.2,
     "adversary": "static",
-    "n_positives": 46,
-    "n_negatives": 233,
-    "fpr_resolution_floor": 0.004291845493562232,
-    "tp": 46,
+    "n_positives": 310,
+    "n_negatives": 1563,
+    "fpr_resolution_floor": 0.0006397952655150352,
+    "tp": 310,
     "fp": 0,
     "tpr": 1.0,
     "tpr_ci95": [
-      0.9229381729480993,
+      0.9881709092315293,
       1.0
     ],
     "fpr": 0.0,
     "fpr_ci95": [
       0.0,
-      0.01570743174646869
+      0.002357344698403051
     ],
-    "fpr_upper_bound_95": 0.01570743174646869,
+    "fpr_upper_bound_95": 0.002357344698403051,
     "roc_auc": 1.0,
-    "average_precision": 1.0
+    "average_precision": 0.9999999999999998
   },
   "sweep": [
     {
@@ -29,168 +29,168 @@
       "rule": "(L - 44) mod 514 == 0 and L >= 558",
       "threshold": 0.1,
       "adversary": "static",
-      "n_positives": 46,
-      "n_negatives": 233,
-      "fpr_resolution_floor": 0.004291845493562232,
-      "tp": 46,
+      "n_positives": 310,
+      "n_negatives": 1563,
+      "fpr_resolution_floor": 0.0006397952655150352,
+      "tp": 310,
       "fp": 0,
       "tpr": 1.0,
       "tpr_ci95": [
-        0.9229381729480993,
+        0.9881709092315293,
         1.0
       ],
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01570743174646869
+        0.002357344698403051
       ],
-      "fpr_upper_bound_95": 0.01570743174646869,
+      "fpr_upper_bound_95": 0.002357344698403051,
       "roc_auc": 1.0,
-      "average_precision": 1.0
+      "average_precision": 0.9999999999999998
     },
     {
       "model": "LatticeRule",
       "rule": "(L - 44) mod 514 == 0 and L >= 558",
       "threshold": 0.2,
       "adversary": "static",
-      "n_positives": 46,
-      "n_negatives": 233,
-      "fpr_resolution_floor": 0.004291845493562232,
-      "tp": 46,
+      "n_positives": 310,
+      "n_negatives": 1563,
+      "fpr_resolution_floor": 0.0006397952655150352,
+      "tp": 310,
       "fp": 0,
       "tpr": 1.0,
       "tpr_ci95": [
-        0.9229381729480993,
+        0.9881709092315293,
         1.0
       ],
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01570743174646869
+        0.002357344698403051
       ],
-      "fpr_upper_bound_95": 0.01570743174646869,
+      "fpr_upper_bound_95": 0.002357344698403051,
       "roc_auc": 1.0,
-      "average_precision": 1.0
+      "average_precision": 0.9999999999999998
     },
     {
       "model": "LatticeRule",
       "rule": "(L - 44) mod 514 == 0 and L >= 558",
       "threshold": 0.3,
       "adversary": "static",
-      "n_positives": 46,
-      "n_negatives": 233,
-      "fpr_resolution_floor": 0.004291845493562232,
-      "tp": 46,
+      "n_positives": 310,
+      "n_negatives": 1563,
+      "fpr_resolution_floor": 0.0006397952655150352,
+      "tp": 310,
       "fp": 0,
       "tpr": 1.0,
       "tpr_ci95": [
-        0.9229381729480993,
+        0.9881709092315293,
         1.0
       ],
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01570743174646869
+        0.002357344698403051
       ],
-      "fpr_upper_bound_95": 0.01570743174646869,
+      "fpr_upper_bound_95": 0.002357344698403051,
       "roc_auc": 1.0,
-      "average_precision": 1.0
+      "average_precision": 0.9999999999999998
     },
     {
       "model": "LatticeRule",
       "rule": "(L - 44) mod 514 == 0 and L >= 558",
       "threshold": 0.4,
       "adversary": "static",
-      "n_positives": 46,
-      "n_negatives": 233,
-      "fpr_resolution_floor": 0.004291845493562232,
-      "tp": 46,
+      "n_positives": 310,
+      "n_negatives": 1563,
+      "fpr_resolution_floor": 0.0006397952655150352,
+      "tp": 310,
       "fp": 0,
       "tpr": 1.0,
       "tpr_ci95": [
-        0.9229381729480993,
+        0.9881709092315293,
         1.0
       ],
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01570743174646869
+        0.002357344698403051
       ],
-      "fpr_upper_bound_95": 0.01570743174646869,
+      "fpr_upper_bound_95": 0.002357344698403051,
       "roc_auc": 1.0,
-      "average_precision": 1.0
+      "average_precision": 0.9999999999999998
     },
     {
       "model": "LatticeRule",
       "rule": "(L - 44) mod 514 == 0 and L >= 558",
       "threshold": 0.5,
       "adversary": "static",
-      "n_positives": 46,
-      "n_negatives": 233,
-      "fpr_resolution_floor": 0.004291845493562232,
-      "tp": 46,
+      "n_positives": 310,
+      "n_negatives": 1563,
+      "fpr_resolution_floor": 0.0006397952655150352,
+      "tp": 310,
       "fp": 0,
       "tpr": 1.0,
       "tpr_ci95": [
-        0.9229381729480993,
+        0.9881709092315293,
         1.0
       ],
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01570743174646869
+        0.002357344698403051
       ],
-      "fpr_upper_bound_95": 0.01570743174646869,
+      "fpr_upper_bound_95": 0.002357344698403051,
       "roc_auc": 1.0,
-      "average_precision": 1.0
+      "average_precision": 0.9999999999999998
     },
     {
       "model": "LatticeRule",
       "rule": "(L - 44) mod 514 == 0 and L >= 558",
       "threshold": 0.6,
       "adversary": "static",
-      "n_positives": 46,
-      "n_negatives": 233,
-      "fpr_resolution_floor": 0.004291845493562232,
-      "tp": 46,
+      "n_positives": 310,
+      "n_negatives": 1563,
+      "fpr_resolution_floor": 0.0006397952655150352,
+      "tp": 310,
       "fp": 0,
       "tpr": 1.0,
       "tpr_ci95": [
-        0.9229381729480993,
+        0.9881709092315293,
         1.0
       ],
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01570743174646869
+        0.002357344698403051
       ],
-      "fpr_upper_bound_95": 0.01570743174646869,
+      "fpr_upper_bound_95": 0.002357344698403051,
       "roc_auc": 1.0,
-      "average_precision": 1.0
+      "average_precision": 0.9999999999999998
     },
     {
       "model": "LatticeRule",
       "rule": "(L - 44) mod 514 == 0 and L >= 558",
       "threshold": 0.7,
       "adversary": "static",
-      "n_positives": 46,
-      "n_negatives": 233,
-      "fpr_resolution_floor": 0.004291845493562232,
-      "tp": 46,
+      "n_positives": 310,
+      "n_negatives": 1563,
+      "fpr_resolution_floor": 0.0006397952655150352,
+      "tp": 310,
       "fp": 0,
       "tpr": 1.0,
       "tpr_ci95": [
-        0.9229381729480993,
+        0.9881709092315293,
         1.0
       ],
       "fpr": 0.0,
       "fpr_ci95": [
         0.0,
-        0.01570743174646869
+        0.002357344698403051
       ],
-      "fpr_upper_bound_95": 0.01570743174646869,
+      "fpr_upper_bound_95": 0.002357344698403051,
       "roc_auc": 1.0,
-      "average_precision": 1.0
+      "average_precision": 0.9999999999999998
     }
   ]
 }
