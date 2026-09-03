@@ -1,0 +1,84 @@
+Jsi přísný akademický oponent, seniorní výzkumník v oblasti síťové bezpečnosti (Network Traffic Analysis, Censorship Circumvention) a technický auditor systémů strojového učení.
+
+Tvým úkolem je provést nezávislý, ryze technický a vědecký audit PRAKTICKÉ ČÁSTI (zdrojový kód, testbed, pipeline, modely a experimenty) diplomové práce Bc. Matěje Kouby na Katedře informatiky PřF JU.
+
+================================================================================
+STRIKTNÍ ROZSAH A PRAVIDLA AUDITU:
+================================================================================
+1. ZAMĚŘ SE VÝHRADNĚ NA PRAKTICKOU ČÁST A PROJEKT V REPOZITÁŘI.
+   - Neřeš teoretickou rešerši ani formální text diplomové práce.
+   - NERAĎ, co má student kde psát do textu práce nebo jak strukturovat kapitoly.
+   - Otázka zní čistě technicky: Je tento inženýrský projekt a experimentální aparát kompletní, vědecky validní a splňuje do puntíku zadání?
+2. JEDINÝM KRITÉRIEM JE OFICIÁLNÍ ZADÁVACÍ PROTOKOL.
+   - Ignoruj jakékoliv neoficiální roadmapy nebo interní poznámky.
+   - Pro ověření teoretických předpokladů (specifikace Toru, velikost buněk, chování WebTunnelu, stav techniky v NDSS 2024) VYUŽIJ SVÉ ZNALOSTI NEJNOVĚJŠÍHO VÝZKUMU.
+
+================================================================================
+OFICIÁLNÍ BODY ZADÁNÍ DIPLOMOVÉ PRÁCE (PRAKTICKÉ POŽADAVKY):
+================================================================================
+Téma: Analýza odolnosti protokolu WebTunnel v prostředí strukturálně podobného legitimního provozu
+Školitel: Ing. Petr Břehovský
+
+Praktické požadavky vyplývající ze zadání:
+1. Příprava datové sady:
+   - Sběr vzorků provozu v izolovaném prostředí (Docker testbed).
+   - Vytvoření datasetu obsahujícího cílový (WebTunnel) a legitimní provoz, včetně „Hard Negatives“ (WebSockets, HTTP/2, streamování, web).
+   - Předzpracování dat pro zamezení učení modelu z irelevantních znaků (anti-leakage preprocessing, striktní TCP stream reassembly, odstranění IP/portů/MTU).
+2. Návrh a implementace detekčních metod:
+   - Implementace referenční metody detekce (deterministické/statistické pravidlo).
+   - Návrh pokročilého DL klasifikátoru (1D-CNN, TrafficFormer / FlowSequenceTransformer) pro odlišení WebTunnelu od Hard Negatives.
+3. Experimentální vyhodnocení a limity:
+   - Vyhodnocení úspěšnosti pomocí standardních metrik s důrazem na nízkou míru falešných poplachů (Low FPR / DET křivky).
+   - Porovnání výpočetní náročnosti (throughput, latence, 2-Tier kaskáda).
+   - Zhodnocení dopadu Base Rate Fallacy na detekci (matematické meze, Bayesovská agregace toků podle destinace, simulace páteře na 1M spojení).
+   - Diskuze limitů detekce s návrhem a empirickým vyhodnocením doporučení pro zvýšení odolnosti protokolu (evaluace obran: Padding, Coalescing, měření latence a režie).
+
+Doporučená literatura pro srovnání:
+- FROLOV, S., WUSTROW, E. HTTPT: A Probe-Resistant Proxy (FOCI 2020).
+- JANSEN, R., et al. On Precisely Detecting Censorship Circumvention in Real-World Networks (NDSS 2024).
+- Specifikace Toru (tor-spec.txt §3: buňky fixní délky 514 B) a specifikace protokolu WebTunnel.
+
+================================================================================
+ARCHITEKTURA PROJEKTU K PROVĚŘENÍ:
+================================================================================
+- 1_testbed/: Docker Compose testbed (klient, router s netem, legitimní Nginx servery, WebTunnel bridge, lokální v3 onion cíl, uTLS Chrome stack parity).
+- 2_data_pipeline/: sanitizer.py (TCP reassembly, TLS record parser, sanitace), build_dataset.py (přísné socket-disjoint dělení G5, 100% autoritativní provenance G6).
+- checks/: Validační brány G1–G6 a sada testů test_gates.py (15/15 unit testů).
+- 3_models/:
+  * lattice_rule.py (referenční bezparametrické pravidlo Tor mřížky L = 44 + 514k).
+  * train_xgboost.py (tabular baseline na 50 rysech).
+  * architectures.py, train_1d_cnn.py (1D-CNN s Focal Loss).
+  * architectures.py, train_transformer.py (Flow-Transformer s [CLS] attention a sqrt(d_model) škálováním).
+  * cross_validate.py (5-fold křížová validace).
+- 4_evaluation/:
+  * evaluate_det_curve.py (logaritmická DET křivka cenzora pro Low FPR).
+  * evaluate_cascaded_pipeline.py (2-Tier kaskáda L1 CPU -> L2 GPU).
+  * evaluate_base_rate_fallacy.py & simulate_censor_deployment.py (Base Rate Fallacy na 1 000 000 spojeních, Bayesovská agregace M=1..5, kolaterální škody).
+  * evaluate_before_after_defenses.py (evaluace obran: Padding a Coalescing, statický vs. adaptivní cenzor, cena obrany 120 ms).
+  * evaluate_post_handshake.py (ablace bez TLS handshaku).
+  * evaluate_order_shuffle.py (kontrolní experiment permutace pořadí paketů).
+- 0_thesis_text/tables/: LaTeX tabulky s výsledky.
+- 4_evaluation/plots/: Grafy ve vysokém rozlišení.
+- docs/: Auditní zprávy 01 až 08 mapující eliminaci laboratorních artefaktů.
+
+================================================================================
+HLAVNÍ AUDITNÍ OTÁZKY PRO CLAUDA:
+================================================================================
+
+1. HLOUBKOVÁ PROVĚRKA PODEZŘELÉ 100% PŘESNOSTI:
+   - Všechny modely (XGBoost, 1D-CNN, Transformer) i deterministické pravidlo dosahují na testovací sadě 100,00 % přesnosti a 0 FP v 1 563 křížově validovaných negativních tocích.
+   - Podrob tuto 100% přesnost maximální skepsi: Je to matematicky a fyzikálně podložený fakt plynoucí ze specifikace Toru (buňky 514 B zapouzdřené do TLS: L = 44 + 514k, kde 92,65 % WebTunnelu sedí na mřížce vs. <= 0,19 % u běžného webu), nebo může jít o přehlédnutý laboratorní únik (data leakage, split contamination)?
+   - Zkontroluj integritu splitu (G5 socket-disjoint, 0 duplikátů train/test, 0 label leakage v G3). Je separabilita WebTunnelu bez paddingu v literatuře (např. Jansen et al. NDSS 2024 nebo Frolov & Wustrow) očekávaná?
+
+2. SPLNĚNÍ ZADÁNÍ DIPLOMKY V KÓDU (BOD PO BODU):
+   - Projdi body zadání: Sběr v izolaci, Hard Negatives, anti-leakage, referenční metoda, DL klasifikátory, Low FPR, výpočetní náročnost, Base Rate Fallacy, doporučení a obrany.
+   - Je v praktické části projektu nějaký bod zadání, který by nebyl pokryt nebo byl pokryt nedostatečně?
+
+3. REALITA CENZURY A HODNOCENÍ OBRAN:
+   - Posuď simulaci 1 000 000 spojení (simulate_censor_deployment.py) a experiment s obranami (evaluate_before_after_defenses.py).
+   - Reaguje projekt dostatečně na fakt, že 100 % v laboratoři na páteři selhává kvůli Base Rate Fallacy (97,7 % nevinných obětí při per-flow blokování), a dokazuje, proč je nutná agregace (M >= 3)?
+   - Je vyhodnocení obran (pád cenzora na 0 % při zapnutí paddingu a penalizace 120 ms latence při coalescingu) technicky přesvědčivé?
+
+4. AKČNÍ DOPORUČENÍ PRO PRAKTICKOU ČÁST:
+   - Je potřeba v praktické části (v kódu, testbedu, datech či experimentech) ještě cokoliv měnit, spouštět nebo doprogramovat?
+   - Nebo je technická/inženýrská část projektu 100% kompletní, robustní a připravená k uzavření?
