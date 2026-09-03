@@ -156,5 +156,47 @@
     "mean_mttd_minutes": 341.6,
     "mean_mttd_flows": 3.0,
     "simulation_runtime_sec": 0.44
-  }
+  },
+  "adversarial_evasion_matrix": [
+    {
+      "scenario": "0. Laboratorn\u00ed baseline",
+      "description": "Dedikovan\u00e1 IP, b\u011b\u017en\u00e9 shluky tok\u016f (0-5 min), bez obrany",
+      "censor_recall_pct": 100.0,
+      "wt_blocked": "5/5",
+      "innocent_blocked": 0,
+      "status": "\u00dasp\u011b\u0161n\u00e1 detekce (Laboratorn\u00ed)"
+    },
+    {
+      "scenario": "1. Taktika Low \\& Slow",
+      "description": "Rozestup spojen\u00ed 20-30 min (> polo\u010das rozpadu 15 min)",
+      "censor_recall_pct": 0.0,
+      "wt_blocked": "0/5",
+      "innocent_blocked": 0,
+      "status": "Cenzor obejit (0 % \u00fasp\u011b\u0161nost)"
+    },
+    {
+      "scenario": "2A. CGNAT Na\u0159ed\u011bn\u00ed",
+      "description": "1 WT hostitel sd\u00edl\u00ed IP s 500 b\u011b\u017en\u00fdmi u\u017eivateli (s dekrementem)",
+      "censor_recall_pct": 0.0,
+      "wt_blocked": "0/1",
+      "innocent_blocked": 0,
+      "status": "Cenzor obejit (0 % \u00fasp\u011b\u0161nost)"
+    },
+    {
+      "scenario": "2B. CGNAT Kolater\u00e1l",
+      "description": "Cenzor vypne dekrement pro zachycen\u00ed WT za CGNATem (Hard-Ban)",
+      "censor_recall_pct": 100.0,
+      "wt_blocked": "1/1",
+      "innocent_blocked": 500,
+      "status": "Masivn\u00ed kolater\u00e1ln\u00ed DoS (500 ob\u011bt\u00ed)"
+    },
+    {
+      "scenario": "3. Kryptografick\u00fd Padding",
+      "description": "WebTunnel zavede intra-record padding (m\u0159\u00ed\u017eka zni\u010dena)",
+      "censor_recall_pct": 0.0,
+      "wt_blocked": "0/5",
+      "innocent_blocked": 0,
+      "status": "Cenzor obejit (0 % \u00fasp\u011b\u0161nost)"
+    }
+  ]
 }

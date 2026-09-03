@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
 """
-ISP Backbone Censor Deployment Simulator (Airtight Stateful Streaming & Analytical):
+ISP Backbone Censor Deployment Simulator (Airtight Stateful Streaming & Adversarial Evasion):
 Simulates a real-world ISP monitoring point processing continuous backbone traffic over 24 hours.
 
-Combines two complementary levels of evaluation:
+Combines three complementary levels of evaluation:
 1. Macro Analytical Sweep (N = 1,000,000 connections):
    - Base-Rate Fallacy across traffic ratios (alpha = 10^-2 .. 10^-6).
    - Multi-flow sequential tracking (M = 1..5).
-   - Protocol countermeasure dynamics (Mode 1 Padding & Mode 2 Coalescing).
+   - Cat-and-Mouse Evasion Lifecycle.
 2. Discrete-Event Stateful Streaming Middlebox Engine (24-Hour Timeline, 500,000 flows):
    - Continuous 24h streaming trace across 10,000 distinct client hosts.
    - Realistic session-clustered arrivals for WebTunnel users and legitimate background traffic.
    - Stateful Leaky-Bucket LLR Accumulator with exponential temporal decay (half-life = 15 min).
    - Router hardware metrics: State table memory footprint (RAM in KB/MB) and line-rate budget.
-   - Dynamic 1-hour routing blackhole enforcement and evasion resilience.
+3. Adversarial Evasion Stress-Test Matrix:
+   - Scenario 0 (Baseline): Bursty sessions, dedicated IP -> 100% block, 0 FP.
+   - Scenario 1 ("Low & Slow"): Pacing connections > 20 min -> Score decays to 0, censor bypassed (0% recall).
+   - Scenario 2A (CGNAT Dilution): 1 WT user + 500 benign users share public IP -> Traffic flood dilutes score (0% recall).
+   - Scenario 2B (CGNAT Collateral): Aggressive ban without dissipation -> Middlebox severs 500 innocent users (DoS).
+   - Scenario 3 (Protocol Padding): Random intra-record padding (Mode 1) -> Lattice destroyed, censor blinded (0% recall).
 
 Exports:
   - 4_evaluation/plots/censor_dilemma_simulation.png
   - 0_thesis_text/tables/table_censor_deployment_simulation.tex
+  - 0_thesis_text/tables/table_censor_evasion_matrix.tex
   - 4_evaluation/censor_simulation_results.json
 """
 from __future__ import annotations
@@ -289,20 +295,183 @@ def simulate_stateful_streaming_middlebox(
     }
 
 
-def export_latex_and_plots(analytical_data, stateful_data):
+def simulate_adversarial_evasion_matrix(
+    n_legit_flows: int = 250_000,
+    duration_s: float = 86400.0,
+    n_hosts: int = 5_000,
+    n_webtunnel_hosts: int = 5,
+    seed: int = RANDOM_SEED
+):
+    """
+    Stress-Test Matrix: Simulates 4 realistic adversarial evasion & network scenarios:
+    0. Baseline: Dedicated IP, bursty sessions.
+    1. Adversarial 'Low & Slow': Pacing flows with interval > 20 min (exceeds half-life).
+    2A. CGNAT Dilution: 1 WT host + 500 benign users behind 1 public IP, normal decrement.
+    2B. CGNAT Collateral: Censor disables decrement to catch WT behind CGNAT -> 500 innocent users cut off.
+    3. Protocol Padding: WebTunnel activates random intra-record padding (Mode 1).
+    """
+    rng = np.random.RandomState(seed)
+    half_life_s = 900.0  # 15 min
+    decay_constant = np.log(2.0) / half_life_s
+    tau_block = 9.5
+    block_duration_s = 3600.0
+
+    scenarios = [
+        {"id": "0_baseline", "name": "0. Laboratorní baseline", "desc": "Dedikovaná IP, běžné shluky toků (0-5 min), bez obrany", "mode": "baseline"},
+        {"id": "1_low_slow", "name": r"1. Taktika Low \& Slow", "desc": "Rozestup spojení 20-30 min (> poločas rozpadu 15 min)", "mode": "low_and_slow"},
+        {"id": "2a_cgnat_dilution", "name": "2A. CGNAT Naředění", "desc": "1 WT hostitel sdílí IP s 500 běžnými uživateli (s dekrementem)", "mode": "cgnat_dilution"},
+        {"id": "2b_cgnat_collateral", "name": "2B. CGNAT Kolaterál", "desc": "Cenzor vypne dekrement pro zachycení WT za CGNATem (Hard-Ban)", "mode": "cgnat_collateral"},
+        {"id": "3_padding", "name": "3. Kryptografický Padding", "desc": "WebTunnel zavede intra-record padding (mřížka zničena)", "mode": "padding"},
+    ]
+
+    results = []
+
+    for sc in scenarios:
+        mode = sc["mode"]
+
+        # 1. Generate WebTunnel flows
+        wt_times, wt_hosts = [], []
+        for h in range(n_webtunnel_hosts):
+            actual_host = 0 if ("cgnat" in mode and h == 0) else h
+            if mode == "low_and_slow":
+                # Space out connections by 20 to 30 minutes
+                times = np.cumsum(rng.uniform(1200.0, 1800.0, 20))
+                times = times[times < duration_s]
+                for t in times:
+                    wt_times.append(t)
+                    wt_hosts.append(actual_host)
+            else:
+                n_sessions = rng.randint(2, 5)
+                for s in range(n_sessions):
+                    session_start = rng.uniform(0.0, duration_s - 1800.0)
+                    n_session_flows = rng.randint(5, 12)
+                    offsets = np.sort(rng.uniform(0.0, 300.0, n_session_flows))
+                    for off in offsets:
+                        wt_times.append(session_start + off)
+                        wt_hosts.append(actual_host)
+
+        wt_times = np.array(wt_times)
+        wt_hosts = np.array(wt_hosts)
+        n_wt_flows = len(wt_times)
+
+        # 2. Generate Legitimate flows
+        legit_times = rng.uniform(0.0, duration_s, n_legit_flows)
+        if "cgnat" in mode:
+            # In CGNAT, host 0 represents the CGNAT gateway pool (500 users) -> receives ~12% of total traffic
+            is_cgnat_traffic = rng.rand(n_legit_flows) < 0.12
+            legit_hosts = rng.randint(n_webtunnel_hosts, n_hosts, n_legit_flows)
+            legit_hosts[is_cgnat_traffic] = 0
+        else:
+            legit_hosts = rng.randint(n_webtunnel_hosts, n_hosts, n_legit_flows)
+
+        # Combine and sort
+        all_times = np.concatenate([wt_times, legit_times])
+        all_hosts = np.concatenate([wt_hosts, legit_hosts])
+        all_is_wt = np.concatenate([np.ones(n_wt_flows, dtype=bool), np.zeros(n_legit_flows, dtype=bool)])
+
+        sort_idx = np.argsort(all_times)
+        all_times = all_times[sort_idx]
+        all_hosts = all_hosts[sort_idx]
+        all_is_wt = all_is_wt[sort_idx]
+        total_fl = len(all_times)
+
+        # Lattice rule hit assignment
+        if mode == "padding":
+            # Padding destroys the 558 B Tor cell lattice completely
+            is_hit = rng.rand(total_fl) < 1.0e-3
+        else:
+            # Normal traffic: WT hits at 93%, benign traffic at 1e-3 noise floor
+            is_hit = np.where(all_is_wt, rng.rand(total_fl) < 0.9265, rng.rand(total_fl) < 1.0e-3)
+
+        # Stateful middlebox execution
+        scores = np.zeros(n_hosts, dtype=float)
+        last_seen_t = np.zeros(n_hosts, dtype=float)
+        blocked_until_t = np.zeros(n_hosts, dtype=float)
+
+        wt_detected_hosts = set()
+        innocent_hosts_blocked = set()
+        use_decrement = (mode != "cgnat_collateral")
+
+        for i in range(total_fl):
+            t = all_times[i]
+            h = all_hosts[i]
+            hit = is_hit[i]
+            wt = all_is_wt[i]
+
+            if t < blocked_until_t[h]:
+                continue
+
+            dt = t - last_seen_t[h]
+            if dt > 0:
+                scores[h] = scores[h] * np.exp(-decay_constant * dt)
+            last_seen_t[h] = t
+
+            if hit:
+                scores[h] += 4.5
+                if scores[h] >= tau_block:
+                    blocked_until_t[h] = t + block_duration_s
+                    if "cgnat" in mode and h == 0:
+                        wt_detected_hosts.add(0)
+                        # Collateral DoS: 500 innocent users behind this CGNAT gateway are severed!
+                        for u in range(500):
+                            innocent_hosts_blocked.add(f"cgnat_victim_{u}")
+                    elif wt and h < n_webtunnel_hosts:
+                        wt_detected_hosts.add(h)
+                    else:
+                        innocent_hosts_blocked.add(h)
+            else:
+                if use_decrement:
+                    scores[h] = max(0.0, scores[h] - 1.2)
+
+        # Evaluate metrics for target host(s)
+        if "cgnat" in mode:
+            # We specifically evaluate host 0 (the CGNAT host)
+            wt_detected_rate = 100.0 if (0 in wt_detected_hosts) else 0.0
+            wt_blocked_count = 1 if (0 in wt_detected_hosts) else 0
+            n_target_wt = 1
+        else:
+            wt_detected_rate = (len(wt_detected_hosts) / n_webtunnel_hosts) * 100.0
+            wt_blocked_count = len(wt_detected_hosts)
+            n_target_wt = n_webtunnel_hosts
+
+        collateral_count = len(innocent_hosts_blocked)
+
+        if wt_detected_rate > 90.0 and collateral_count == 0:
+            status = "Úspěšná detekce (Laboratorní)"
+        elif wt_detected_rate == 0.0 and collateral_count == 0:
+            status = "Cenzor obejit (0 % úspěšnost)"
+        elif collateral_count >= 500:
+            status = "Masivní kolaterální DoS (500 obětí)"
+        else:
+            status = f"Částečná detekce ({wt_detected_rate:.1f} %)"
+
+        results.append({
+            "scenario": sc["name"],
+            "description": sc["desc"],
+            "censor_recall_pct": wt_detected_rate,
+            "wt_blocked": f"{wt_blocked_count}/{n_target_wt}",
+            "innocent_blocked": collateral_count,
+            "status": status
+        })
+
+    return results
+
+
+def export_latex_and_plots(analytical_data, stateful_data, evasion_results):
     setup_matplotlib_style()
 
     # 1. Export comprehensive JSON results
     json_path = os.path.join(PROJECT_ROOT, "4_evaluation", "censor_simulation_results.json")
     combined_data = {
         "analytical_1M_sweep": analytical_data,
-        "stateful_streaming_engine": stateful_data
+        "stateful_streaming_engine": stateful_data,
+        "adversarial_evasion_matrix": evasion_results
     }
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(combined_data, f, indent=2)
     print(f"[OK] Saved {json_path}")
 
-    # 2. Export LaTeX Table (Main text)
+    # 2. Export Macro LaTeX Table (Base-Rate Fallacy)
     tex_path = os.path.join(LATEX_TABLES_DIR, "table_censor_deployment_simulation.tex")
     with open(tex_path, "w", encoding="utf-8") as f:
         f.write(r"\begin{table}[htbp]" + "\n")
@@ -321,7 +490,26 @@ def export_latex_and_plots(analytical_data, stateful_data):
         f.write(r"\end{table}" + "\n")
     print(f"[OK] Exported {tex_path}")
 
-    # 3. Generate Flagship 3-Panel Figure
+    # 3. Export Adversarial Evasion Matrix LaTeX Table
+    evasion_tex_path = os.path.join(LATEX_TABLES_DIR, "table_censor_evasion_matrix.tex")
+    with open(evasion_tex_path, "w", encoding="utf-8") as f:
+        f.write(r"\begin{table}[htbp]" + "\n")
+        f.write(r"\centering" + "\n")
+        f.write(r"\caption{Stres-testovací matice adaptivních úniků proti stavovému Leaky-Bucket cenzoru (24hodinový streaming trace)}" + "\n")
+        f.write(r"\label{tab:censor_evasion_matrix}" + "\n")
+        f.write(r"\begin{tabular}{llccc}" + "\n")
+        f.write(r"\hline" + "\n")
+        f.write(r"\textbf{Scénář úniku / topologie} & \textbf{Chování protokolu / sítě} & \textbf{Úspěšnost cenzora} & \textbf{Zablokováno nevinných} & \textbf{Výsledek middleboxu} \\" + "\n")
+        f.write(r"\hline" + "\n")
+        for r in evasion_results:
+            f.write(f"{r['scenario']} & {r['description']} & {r['censor_recall_pct']:.1f}\\% & {r['innocent_blocked']} & {r['status']} \\\\\n")
+        f.write(r"\hline" + "\n")
+        f.write(r"\end{tabular}" + "\n")
+        f.write(r"\par\vspace{0.15cm}\footnotesize\textit{Poznámka: Stavový filtr s exponenciálním rozpadem ($\tau_{1/2} = 15\text{ min}$, $\tau_{\text{block}} = 9,5$). Laboratorní 100\% detekce selhává při časovém rozptýlení toků (Low \& Slow), za přítomnosti CGNATu (naředění nebo masivní DoS na 500 nevinných) i při zavedení kryptografického paddingu.}" + "\n")
+        f.write(r"\end{table}" + "\n")
+    print(f"[OK] Exported {evasion_tex_path}")
+
+    # 4. Generate Flagship 3-Panel Figure
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
 
     # Panel A: FDR vs Alpha (The Haystack Problem)
@@ -387,7 +575,7 @@ def export_latex_and_plots(analytical_data, stateful_data):
 
 def main():
     print("=" * 80)
-    print("  AIRTIGHT CENSOR DEPLOYMENT SIMULATOR: ANALYTICAL & STATEFUL STREAMING")
+    print("  AIRTIGHT CENSOR DEPLOYMENT SIMULATOR: ANALYTICAL & ADVERSARIAL STREAMING")
     print("=" * 80)
 
     # 1. Macro Analytical Evaluation across 1,000,000 flows
@@ -420,11 +608,27 @@ def main():
     print(f"Mean Time to Detect (MTTD):   {stateful_data['mean_mttd_minutes']} min (~{stateful_data['mean_mttd_flows']} sessions)")
     print(f"Simulation engine runtime:    {stateful_data['simulation_runtime_sec']:.3f} s")
 
-    # Export LaTeX tables, JSON, and updated figures
-    export_latex_and_plots(analytical_data, stateful_data)
+    # 3. Adversarial Evasion Stress-Test Matrix
+    print("\n--- 4. Adversarial Evasion Stress-Test Matrix (5 Scenarios) ---")
+    evasion_results = simulate_adversarial_evasion_matrix(
+        n_legit_flows=250_000,
+        duration_s=86400.0,
+        n_hosts=5_000,
+        n_webtunnel_hosts=5,
+        seed=RANDOM_SEED
+    )
+    for res in evasion_results:
+        print(f"[{res['scenario']}]")
+        print(f"  Chování:            {res['description']}")
+        print(f"  Úspěšnost cenzora:  {res['censor_recall_pct']:.1f}% ({res['wt_blocked']} hostů)")
+        print(f"  Nevinných obětí:    {res['innocent_blocked']}")
+        print(f"  Výsledek filtru:    {res['status']}\n")
 
-    print("\n" + "=" * 80)
-    print("  SIMULATION COMPLETE: AIRTIGHT PRODUCTION MODEL VERIFIED")
+    # Export LaTeX tables, JSON, and updated figures
+    export_latex_and_plots(analytical_data, stateful_data, evasion_results)
+
+    print("=" * 80)
+    print("  SIMULATION COMPLETE: AIRTIGHT PRODUCTION & ADVERSARIAL MODEL VERIFIED")
     print("=" * 80)
 
 

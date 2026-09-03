@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+\centering
+\caption{Stres-testovací matice adaptivních úniků proti stavovému Leaky-Bucket cenzoru (24hodinový streaming trace)}
+\label{tab:censor_evasion_matrix}
+\begin{tabular}{llccc}
+\hline
+\textbf{Scénář úniku / topologie} & \textbf{Chování protokolu / sítě} & \textbf{Úspěšnost cenzora} & \textbf{Zablokováno nevinných} & \textbf{Výsledek middleboxu} \\
+\hline
+0. Laboratorní baseline & Dedikovaná IP, běžné shluky toků (0-5 min), bez obrany & 100.0\% & 0 & Úspěšná detekce (Laboratorní) \\
+1. Taktika Low \& Slow & Rozestup spojení 20-30 min (> poločas rozpadu 15 min) & 0.0\% & 0 & Cenzor obejit (0 % úspěšnost) \\
+2A. CGNAT Naředění & 1 WT hostitel sdílí IP s 500 běžnými uživateli (s dekrementem) & 0.0\% & 0 & Cenzor obejit (0 % úspěšnost) \\
+2B. CGNAT Kolaterál & Cenzor vypne dekrement pro zachycení WT za CGNATem (Hard-Ban) & 100.0\% & 500 & Masivní kolaterální DoS (500 obětí) \\
+3. Kryptografický Padding & WebTunnel zavede intra-record padding (mřížka zničena) & 0.0\% & 0 & Cenzor obejit (0 % úspěšnost) \\
+\hline
+\end{tabular}
+\par\vspace{0.15cm}\footnotesize\textit{Poznámka: Stavový filtr s exponenciálním rozpadem ($\tau_{1/2} = 15\text{ min}$, $\tau_{\text{block}} = 9,5$). Laboratorní 100\% detekce selhává při časovém rozptýlení toků (Low \& Slow), za přítomnosti CGNATu (naředění nebo masivní DoS na 500 nevinných) i při zavedení kryptografického paddingu.}
+\end{table}
