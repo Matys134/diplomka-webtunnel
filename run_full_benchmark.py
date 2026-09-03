@@ -136,17 +136,11 @@ def main():
     # 4. 5-Fold Stratified Group Cross-Validation
     timings["cross_validation"] = run_step("5-Fold Session-Stratifikovaná křížová validace", f"{VENV_PYTHON} 3_models/cross_validate.py")
 
-    # 5. XAI Explainability
-    timings["explainability"] = run_step("Explainable AI (SHAP & Input Gradient Saliency)", f"{VENV_PYTHON} 3_models/explain_models.py")
-
-    # 6. Evaluační experimenty
+    # 5. Evaluační experimenty
     timings["post_handshake"] = run_step("Pre- vs. Post-Handshake ablace (klientsky Finished, manifest-aware)", f"{VENV_PYTHON} 4_evaluation/evaluate_post_handshake.py")
     timings["cross_profile"] = run_step("Doménový posun a generalizace (Broadband -> LTE & Lossy)", f"{VENV_PYTHON} 4_evaluation/evaluate_cross_profile.py")
     timings["defenses"] = run_step("Obrany na urovni TLS zaznamu: staticky i adaptivni protivnik", f"{VENV_PYTHON} 4_evaluation/evaluate_before_after_defenses.py")
-    timings["cascaded_pipeline"] = run_step("2-Tier kaskádová architektura (L1 CPU -> L2 GPU)", f"{VENV_PYTHON} 4_evaluation/evaluate_cascaded_pipeline.py")
     timings["det_curve"] = run_step("Logaritmická DET křivka cenzora", f"{VENV_PYTHON} 4_evaluation/evaluate_det_curve.py")
-    timings["confusion_breakdown"] = run_step("Dekompozice chybovosti po třídách a konfuzní matice", f"{VENV_PYTHON} 4_evaluation/evaluate_confusion_matrix.py")
-    timings["base_rate_fallacy"] = run_step("Base Rate Fallacy a empiricka LLR agregace podle destinace", f"{VENV_PYTHON} 4_evaluation/evaluate_base_rate_fallacy.py")
     timings["order_shuffle"] = run_step("Kontrolní experiment permutace pořadí (Order-Shuffle Control)", f"{VENV_PYTHON} 4_evaluation/evaluate_order_shuffle.py")
     timings["censor_simulation"] = run_step("Simulace nasazení cenzora na páteřní síti (1M toků, Base-Rate & obrany)", f"{VENV_PYTHON} 4_evaluation/simulate_censor_deployment.py")
 
