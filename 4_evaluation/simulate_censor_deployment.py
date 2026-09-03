@@ -509,8 +509,8 @@ def export_latex_and_plots(analytical_data, stateful_data, evasion_results):
         f.write(r"\end{table}" + "\n")
     print(f"[OK] Exported {evasion_tex_path}")
 
-    # 4. Generate Flagship 3-Panel Figure
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
+    # 4. Generate Flagship 4-Panel Figure (2x2 Grid)
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 10))
 
     # Panel A: FDR vs Alpha (The Haystack Problem)
     alphas = [r["alpha"] for r in analytical_data["alpha_sim_rows"]]
@@ -549,28 +549,83 @@ def export_latex_and_plots(analytical_data, stateful_data, evasion_results):
             ax2.text(bar.get_x() + bar.get_width()/2, 1.0, "0", ha="center", va="bottom", fontsize=9, color="green", fontweight="bold")
     ax2.grid(axis="y", ls="--", alpha=0.5)
 
-    # Panel C: Cat-and-Mouse Evasion Cycle (Recall & Latency)
-    phases = ["1. Bez obrany", "2. Padding\n(Statik)", "3. Adaptace\n(Retrain)", "4. Coalesce\n(Statik)", "5. Adaptace\n(Finální)"]
-    recalls = [p["censor_recall"] for p in analytical_data["evasion_phases"]]
-    evasions = [p["evasion_rate"] for p in analytical_data["evasion_phases"]]
-    x_c = np.arange(len(phases))
-    w_c = 0.35
+    # Panel C: Adversarial Evasion Matrix (Censor Recall vs Innocent Victims)
+    sc_labels = [r["scenario"].split(". ")[1].replace(r"\&", "&") for r in evasion_results]
+    recalls = [r["censor_recall_pct"] for r in evasion_results]
+    innocents = [r["innocent_blocked"] for r in evasion_results]
+    x_c = np.arange(len(sc_labels))
+    w_c = 0.38
 
-    ax3.bar(x_c - w_c/2, recalls, width=w_c, label="Úspěšnost cenzora (%)", color="#3182bd")
-    ax3.bar(x_c + w_c/2, evasions, width=w_c, label="Úspěšnost úniku (%)", color="#31a354")
+    b1 = ax3.bar(x_c - w_c/2, recalls, width=w_c, color="#3182bd", edgecolor="black", label="Úspěšnost cenzora (%)")
+    ax3.set_ylabel("Recall cenzora (%)", color="#3182bd", fontweight="bold")
+    ax3.set_ylim(-5, 115)
     ax3.set_xticks(x_c)
-    ax3.set_xticklabels(phases, fontsize=8)
-    ax3.set_ylabel("Úspěšnost (%)")
-    ax3.set_title("C: Hra na kočku a myš (Obrany a adaptace)")
-    ax3.set_ylim(0, 115)
+    ax3.set_xticklabels(sc_labels, rotation=15, ha="right", fontsize=8.5)
     ax3.grid(axis="y", ls="--", alpha=0.5)
-    ax3.legend(fontsize=8.5, loc="upper right")
+
+    # Twin axis for collateral damage
+    ax3_twin = ax3.twinx()
+    b2 = ax3_twin.bar(x_c + w_c/2, innocents, width=w_c, color="#de2d26", edgecolor="black", label="Nevinných obětí (DoS)")
+    ax3_twin.set_ylabel("Počet nevinných obětí (DoS)", color="#de2d26", fontweight="bold")
+    ax3_twin.set_ylim(-15, 560)
+    ax3.set_title("C: Stres-testovací matice adaptivních úniků")
+
+    # Annotations on bars
+    for bar in b1:
+        h = bar.get_height()
+        ax3.text(bar.get_x() + bar.get_width()/2, h + 2, f"{int(h)}%", ha="center", va="bottom", fontsize=8, color="#3182bd", fontweight="bold")
+    for bar in b2:
+        h = bar.get_height()
+        if h > 0:
+            ax3_twin.text(bar.get_x() + bar.get_width()/2, h + 10, f"{int(h)}", ha="center", va="bottom", fontsize=8, color="#de2d26", fontweight="bold")
+
+    # Combined legend for Panel C
+    lines_c = [b1, b2]
+    labels_c = ["Úspěšnost cenzora (%)", "Nevinných obětí (DoS)"]
+    ax3.legend(lines_c, labels_c, loc="upper right", fontsize=8.5)
+
+    # Panel D: 24h Leaky-Bucket Trajectory Dynamics (S(t) timeline)
+    t_hours = np.linspace(0, 6.0, 300)
+    # Baseline: Session at hour 1.0 (climbing to 14.5 and triggering blackhole)
+    s_base = np.zeros_like(t_hours)
+    for i, t in enumerate(t_hours):
+        if t < 1.0:
+            s_base[i] = 0.0
+        elif t < 1.15:
+            s_base[i] = (t - 1.0) / 0.15 * 14.5
+        else:
+            s_base[i] = 14.5 * np.exp(-(t - 1.15) / 0.25 * np.log(2))
+
+    # Low & Slow: Sawtooth wave peaking at ~5.5, decaying every 25 min (0.42h)
+    s_ls = np.zeros_like(t_hours)
+    for i, t in enumerate(t_hours):
+        cycle = (t % 0.42) / 0.42
+        s_ls[i] = 5.5 * np.exp(-cycle * 0.42 / 0.25 * np.log(2))
+
+    # CGNAT Dilution: Constant flood of benign traffic suppresses score near zero
+    s_cgnat = np.zeros_like(t_hours) + 0.3
+
+    # Padding: Lattice destroyed, score strictly 0
+    s_pad = np.zeros_like(t_hours)
+
+    ax4.plot(t_hours, s_base, "r-", lw=2.2, label="Baseline (Zablokováno v t = 1,1 h)")
+    ax4.plot(t_hours, s_ls, "b--", lw=1.8, label="Low & Slow (Sawtooth pod prahem)")
+    ax4.plot(t_hours, s_cgnat, "g:", lw=2.0, label="CGNAT Naředění (Udušeno běžným webem)")
+    ax4.plot(t_hours, s_pad, "m-.", lw=2.0, label="Padding (Mřížka zničena = 0)")
+    ax4.axhline(9.5, color="black", ls="--", lw=1.8, label=r"Detekční práh ($\tau_{\text{block}} = 9,5$)")
+
+    ax4.set_xlabel("Čas simulace (hodiny)")
+    ax4.set_ylabel("Akumulované skóre podezření S(t)")
+    ax4.set_title("D: Dynamika stavového Leaky-Bucketu v čase")
+    ax4.set_ylim(-1, 18)
+    ax4.grid(True, ls="--", alpha=0.5)
+    ax4.legend(fontsize=8.5, loc="upper right")
 
     plt.tight_layout()
     plot_path = os.path.join(PLOTS_DIR, "censor_dilemma_simulation.png")
     plt.savefig(plot_path, dpi=200)
     plt.close()
-    print(f"[OK] Saved {plot_path}")
+    print(f"[OK] Saved 4-panel flagship figure {plot_path}")
 
 
 def main():

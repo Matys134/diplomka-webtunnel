@@ -155,7 +155,7 @@
     "webtunnel_block_rate_pct": 100.0,
     "mean_mttd_minutes": 341.6,
     "mean_mttd_flows": 3.0,
-    "simulation_runtime_sec": 0.44
+    "simulation_runtime_sec": 0.463
   },
   "adversarial_evasion_matrix": [
     {
